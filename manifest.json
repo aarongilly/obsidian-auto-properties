@@ -1,0 +1,11 @@
+{
+	"id": "auto-properties",
+	"name": "Auto-Properties",
+	"version": "0.0.1",
+	"minAppVersion": "0.15.0",
+	"description": "Create automated properties based on note content and rules.",
+	"author": "Aaron Gillespie",
+	"authorUrl": "https://aarongilly.com",
+	"fundingUrl": "https://www.buymeacoffee.com/aarongilly",
+	"isDesktopOnly": false
+}

@@ -1,0 +1,32 @@
+.my-head{
+    text-align: center;
+}
+
+.property-panel{
+    border: 2px solid #444;
+    border-radius: 8px;
+    background-color: #dde;
+    padding: var(--size-4-4);
+    margin-top: var(--size-4-4);
+}
+
+.my-button{
+    margin: auto;
+    margin-top: 2em;
+    padding: auto;
+    display: block;
+}
+
+.my-delete-button{
+    margin-left: 10px;
+    background-color: red;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.button-container{
+    margin-top: 8px;
+}

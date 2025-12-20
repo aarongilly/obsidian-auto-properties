@@ -64,7 +64,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
         // button to create a new blank auto-property
         const addButton = document.createElement("button");
-        addButton.setText("Add Auto-property");
+        addButton.setText("Add auto-property");
         addButton.addClass('my-button');
         addButton.onclick = async () => {
             this.plugin.settings.autopropertySettings.push({

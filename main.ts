@@ -55,7 +55,7 @@ export default class AutoPropertyPlugin extends Plugin {
 			// Pull directly from editor to ensure we have the latest content
 			const content = editor.getDoc().getValue();
 
-			this.applyAllRulesToFile(file, content);
+			this.applyAllRulesToFile(file, content).catch(e=>console.error(e)).then(()=>{});
 		}));
 	}
 
@@ -81,7 +81,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		if (!content) content = await this.app.vault.read(file)
 		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
 
-		this.app.fileManager.processFrontMatter(file, async (frontmatter) => {
+		this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 
 			const keys = Object.keys(frontmatter);
 

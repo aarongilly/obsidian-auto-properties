@@ -73,7 +73,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	updateAllNotes() {
 		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
-		allNotes.forEach(note => this.applyAllRulesToFile(note))
+		allNotes.forEach(note => this.applyAllRulesToFile(note).catch(e=>console.error(e)).then(()=>{}))
 	}
 
 	async applyAllRulesToFile(file: TFile, content?: string) {

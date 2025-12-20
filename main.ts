@@ -55,7 +55,8 @@ export default class AutoPropertyPlugin extends Plugin {
 			// Pull directly from editor to ensure we have the latest content
 			const content = editor.getDoc().getValue();
 
-			this.applyAllRulesToFile(file, content).catch(e=>console.error(e)).then(()=>{});
+			//marked void simply to tell eslint I don't expect to do anything with the promise
+			void this.applyAllRulesToFile(file, content);
 		}));
 	}
 
@@ -73,7 +74,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	updateAllNotes() {
 		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
-		allNotes.forEach(note => this.applyAllRulesToFile(note).catch(e=>console.error(e)).then(()=>{}))
+		allNotes.forEach(note => void this.applyAllRulesToFile(note))
 	}
 
 	async applyAllRulesToFile(file: TFile, content?: string) {
@@ -81,7 +82,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		if (!content) content = await this.app.vault.read(file)
 		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
 
-		this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+		void this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 
 			const keys = Object.keys(frontmatter);
 
@@ -107,7 +108,7 @@ export default class AutoPropertyPlugin extends Plugin {
 					frontmatter[key] = newValue;
 				}
 			})
-		}).catch(e=>console.error(e)).then(()=>{})
+		})
 	}
 
 	// async applyAllRulesToFileDANGEROUSLINKVERSION(file: TFile) {

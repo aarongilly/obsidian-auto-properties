@@ -107,7 +107,7 @@ export default class AutoPropertyPlugin extends Plugin {
 					frontmatter[key] = newValue;
 				}
 			})
-		})
+		}).catch(e=>console.error(e)).then(()=>{})
 	}
 
 	// async applyAllRulesToFileDANGEROUSLINKVERSION(file: TFile) {

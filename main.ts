@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, TFile } from 'obsidian';
+import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, AutoPropertiesSettingsTab, AutoPropRule } from "./settings";
 
 export default class AutoPropertyPlugin extends Plugin {
@@ -7,17 +7,47 @@ export default class AutoPropertyPlugin extends Plugin {
 	// to prevent infinite loops, track when the last update was made
 	lastRun: Date
 
+	// supporting the active-leaf-change trigger
+	private lastActiveFile: TFile | null = null;
+
+
 	async onload() {
 		await this.loadSettings();
+
+		this.app.workspace.onLayoutReady(() => {
+			this.lastActiveFile = this.app.workspace.getActiveFile();
+		});
 
 		this.lastRun = new Date();
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'update-all',
-			name: 'Update properties across vault',
+			name: 'Update auto-properties for every file in the vault',
 			callback: () => {
 				this.updateAllNotes()
+			}
+		});
+
+		// This adds a complex command that can check whether the current state of the app allows execution of the command
+		this.addCommand({
+			id: 'update-current',
+			name: 'Update auto-properties',
+			checkCallback: (checking: boolean) => {
+				// Conditions to check
+				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (markdownView) {
+					// If checking is true, we're simply "checking" if the command can be run.
+					// If checking is false, then we want to actually perform the operation.
+					if (!checking) {
+						if (markdownView.file === null) return
+						this.applyAllRulesToFile(markdownView.file)
+					}
+
+					// This command will only show up in Command Palette when the check function returns true
+					return true;
+				}
+				return false;
 			}
 		});
 
@@ -27,10 +57,8 @@ export default class AutoPropertyPlugin extends Plugin {
 		// The main part of the plugin, listening to file changes & updating properties
 		this.registerEvent(this.app.vault.on('modify', (e) => {
 
-			// if manual mode, skip doing anything.
-			// Realistically I should probably de-register the event listener
-			// but this is easier and has the same effect from what I can tell
-			if (this.settings.manualMode) return;
+			// if not in this mode, immediately end execution
+			if (this.settings.mode !== 'modify') return;
 
 			// Prevent infinite loop by checking time since last update
 			const now = new Date();
@@ -58,7 +86,47 @@ export default class AutoPropertyPlugin extends Plugin {
 			//marked void simply to tell eslint I don't expect to do anything with the promise
 			void this.applyAllRulesToFile(file, content);
 		}));
+
+
+
+		// This is the other option for running the update, as an alternative to the modify/manual options
+		// The main part of the plugin, listening to file changes & updating properties
+		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf: WorkspaceLeaf | null) => {
+
+			const previousFile = this.lastActiveFile;
+			const currentFile = this.getFileFromLeaf(leaf);
+			this.lastActiveFile = currentFile;
+
+			// if not in this mode, immediately end execution
+			if (this.settings.mode !== 'active-leaf-change') return;
+			if (previousFile === null) return;
+
+			// Prevent infinite loop by checking time since last update
+			const now = new Date();
+			const timeDiff = now.getTime() - this.lastRun.getTime();
+			if (timeDiff < 2000) {
+				// Less than 2 seconds since last update, skip processing
+				return;
+			}
+			this.lastRun = now;
+
+			//marked void simply to tell eslint I don't expect to do anything with the promise
+			void this.applyAllRulesToFile(previousFile);
+		}));
 	}
+
+	private getFileFromLeaf(leaf: WorkspaceLeaf | null): TFile | null {
+		if (!leaf) return null;
+
+		const view = leaf.view;
+
+		if (view instanceof MarkdownView) {
+			return view.file;
+		}
+
+		return null;
+	}
+
 
 	onunload() {
 		// nothing to do
@@ -74,15 +142,18 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	updateAllNotes() {
 		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
-		allNotes.forEach(note => void this.applyAllRulesToFile(note))
+		new Notice("Updating every auto-property in every note")
+		allNotes.forEach(note => void this.applyAllRulesToFile(note, undefined, false))
 	}
 
-	async applyAllRulesToFile(file: TFile, content?: string) {
+	async applyAllRulesToFile(file: TFile, content?: string, reportTotalChanges = true) {
 
 		if (!content) content = await this.app.vault.read(file)
 		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
 
-		void this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+		let propertiesChanged: number = 0;
+
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 
 			const keys = Object.keys(frontmatter);
 
@@ -103,12 +174,22 @@ export default class AutoPropertyPlugin extends Plugin {
 				// Evaluate the function associated with the key
 				const newValue = AutoPropertyPlugin.getValue(matchedProperty, bodyContent);
 
-				// Update frontmatter if the value has changed
-				if (frontmatter[key] !== newValue) {
-					frontmatter[key] = newValue;
+				// Check if anything has changed
+				if (frontmatter[key] === newValue) return // same result
+				if (frontmatter[key] !== null && newValue !== null) {
+					if (frontmatter[key].toString() === newValue?.toString()) return // array contains same content
 				}
+
+				frontmatter[key] = newValue;
+				propertiesChanged = propertiesChanged + 1;
+
 			})
 		})
+
+		// Display a message if changes were made & if the user wants to see them
+		if (reportTotalChanges && propertiesChanged > 0 && this.settings.showNotices) {
+			new Notice(`Updated ${propertiesChanged} auto-propert${propertiesChanged === 1 ? 'y' : 'ies'}`)
+		}
 	}
 
 	// async applyAllRulesToFileDANGEROUSLINKVERSION(file: TFile) {

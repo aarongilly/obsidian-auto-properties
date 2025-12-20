@@ -3,7 +3,8 @@ import AutoPropertyPlugin from "./main";
 
 export interface AutoPropertyPluginSettings {
     autopropertySettings: AutoPropRule[];
-    manualMode: boolean
+    mode: 'modify' | 'active-leaf-change' | 'manual';
+    showNotices: boolean
 }
 
 export interface AutoPropRule {
@@ -19,7 +20,8 @@ export interface AutoPropRule {
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
     autopropertySettings: [],
-    manualMode: false
+    mode: 'modify',
+    showNotices: true
 }
 
 export class AutoPropertiesSettingsTab extends PluginSettingTab {
@@ -35,22 +37,24 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        new Setting(containerEl).setName("Update all notes").setDesc("Properties auto-update each time a note changes, but if you want to update all notes at once you can click this button.").addButton(button => {
-            button.setButtonText("Update all");
-            button.onClick(() => {
-                this.plugin.updateAllNotes()
-                new Notice("Updated all auto-property values in vault")
-            });
-        });
-
-        new Setting(containerEl).setName("Manual mode").setDesc("Disable 'run on file modification' feature.")
-            .addToggle(toggle => {
-                toggle.setValue(this.plugin.settings.manualMode).onChange(async (value) => {
-                    this.plugin.settings.manualMode = value;
+        new Setting(containerEl).setName("Rule trigger").setDesc("On file modification, when navigating away, or manual-only via the 'Auto-properties: update auto-properties' command")
+            .addDropdown(dropdown => {
+                dropdown.addOption("modify", "On file modification");
+                dropdown.addOption("active-leaf-change", "On file focus change");
+                dropdown.addOption("manual", "Manually via command");
+                dropdown.setValue(this.plugin.settings.mode).onChange(async (value) => {
+                    this.plugin.settings.mode = value as 'modify' | 'active-leaf-change' | 'manual';
                     await this.plugin.saveSettings();
                 });
             });
 
+        new Setting(containerEl).setName("Show notices").setDesc("Show a notice every time auto-property values have been updated.")
+            .addToggle(toggle => {
+                toggle.setValue(this.plugin.settings.showNotices).onChange(async (value) => {
+                    this.plugin.settings.showNotices = value
+                    await this.plugin.saveSettings()
+                });
+            })
 
         let propertiesHeading = document.createElement("h2");
         propertiesHeading.innerText = "Auto-properties";

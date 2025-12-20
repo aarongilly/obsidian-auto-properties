@@ -5,7 +5,7 @@
 .property-panel{
     border: 2px solid #444;
     border-radius: 8px;
-    background-color: #dde;
+    background-color: var(--background-secondary);
     padding: var(--size-4-4);
     margin-top: var(--size-4-4);
 }

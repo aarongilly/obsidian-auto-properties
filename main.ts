@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin, TFile } from 'obsidian';
-import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, SampleSettingTab, AutoPropRule } from "./settings";
+import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, AutoPropertiesSettingsTab, AutoPropRule } from "./settings";
 
 export default class AutoPropertyPlugin extends Plugin {
 	settings: AutoPropertyPluginSettings;
@@ -22,10 +22,10 @@ export default class AutoPropertyPlugin extends Plugin {
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new AutoPropertiesSettingsTab(this.app, this));
 
 		// The main part of the plugin, listening to file changes & updating properties
-		this.registerEvent(this.app.vault.on('modify', async (e) => {
+		this.registerEvent(this.app.vault.on('modify', (e) => {
 
 			// if manual mode, skip doing anything.
 			// Realistically I should probably de-register the event listener
@@ -71,7 +71,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	async updateAllNotes() {
+	updateAllNotes() {
 		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
 		allNotes.forEach(note => this.applyAllRulesToFile(note))
 	}
@@ -162,9 +162,9 @@ export default class AutoPropertyPlugin extends Plugin {
 		return lines.slice(1, i).join('\n');
 	}
 
-	static getValue(autoProp: AutoPropRule, bodyContent: string): any {
+	static getValue(autoProp: AutoPropRule, bodyContent: string): string | string[] | number | boolean | undefined {
 		const lines = bodyContent.split(/\r\n|\r|\n/);
-		let matches: string | any[] = [];
+		let matches: string[] = [];
 
 		matches = lines.filter(line => AutoPropertyPlugin.lineMatchesRule(line, autoProp))
 
@@ -175,21 +175,20 @@ export default class AutoPropertyPlugin extends Plugin {
 		if (matches.length === 0) return ''
 
 		if (autoProp.modifierOmitSearch === 'omit') {
-			matches = matches.map(matchedLine => matchedLine.replaceAll(autoProp.ruleValue, ''))
+			matches = matches.map(matchedLine => matchedLine.split(autoProp.ruleValue).join(''))
 		}
 
 		if (autoProp.modifierWhitespace === 'trim') {
 			matches = matches.map(matchedLine => matchedLine.trim())
 		}
 
-		if (true) {
-			matches = matches.map(matchedLine => {
-				if (!AutoPropertyPlugin.hasLinkTarget(matchedLine)) return matchedLine
-				const blockId = AutoPropertyPlugin.extractBlockIdFromLine(matchedLine)
-				let valueLessBlockId = matchedLine.replaceAll(blockId, '')
-				return `[[#${blockId.trim()}|${valueLessBlockId}]]`
-			})
-		}
+		// Look for possible block IDs and, if found, convert to links to said blocks
+		matches = matches.map(matchedLine => {
+			if (!AutoPropertyPlugin.hasLinkTarget(matchedLine)) return matchedLine
+			const blockId = AutoPropertyPlugin.extractBlockIdFromLine(matchedLine)
+			let valueLessBlockId = matchedLine.split(blockId).join('')
+			return `[[#${blockId.trim()}|${valueLessBlockId}]]`
+		})
 
 		//a nice to have, if teh ruleValue is an embed, remove the ! from start to better align with obsidian behavior
 		if (autoProp.ruleValue.startsWith('!')) matches[0] = matches[0].slice(1);
@@ -210,7 +209,7 @@ export default class AutoPropertyPlugin extends Plugin {
 	}
 
 	static lineMatchesRule(line: string, autoProp: AutoPropRule): boolean {
-		if(autoProp.modifierCaseSensitive === 'insensitive'){
+		if (autoProp.modifierCaseSensitive === 'insensitive') {
 			line = line.toLowerCase();
 			autoProp.ruleValue = autoProp.ruleValue.toLowerCase()
 		}

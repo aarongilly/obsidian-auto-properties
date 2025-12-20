@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
     manualMode: false
 }
 
-export class SampleSettingTab extends PluginSettingTab {
+export class AutoPropertiesSettingsTab extends PluginSettingTab {
     plugin: AutoPropertyPlugin;
 
     constructor(app: App, plugin: AutoPropertyPlugin) {
@@ -37,7 +37,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         new Setting(containerEl).setName("Update all notes").setDesc("Properties auto-update each time a note changes, but if you want to update all notes at once you can click this button.").addButton(button => {
             button.setButtonText("Update all");
-            button.onClick(async () => {
+            button.onClick(() => {
                 this.plugin.updateAllNotes()
                 new Notice("Updated all auto-property values in vault")
             });
@@ -53,7 +53,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
 
         let propertiesHeading = document.createElement("h2");
-        propertiesHeading.innerText = "Auto-Properties";
+        propertiesHeading.innerText = "Auto-properties";
         propertiesHeading.addClass('my-head');
         containerEl.appendChild(propertiesHeading)
 
@@ -64,7 +64,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         // button to create a new blank auto-property
         const addButton = document.createElement("button");
-        addButton.setText("Add Auto-Property");
+        addButton.setText("Add Auto-property");
         addButton.addClass('my-button');
         addButton.onclick = async () => {
             this.plugin.settings.autopropertySettings.push({
@@ -99,7 +99,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         const header = document.createElement("h3");
         header.addClasses(["key-header", "clickable"]);
-        header.style.marginBottom = "0px"; //have to set this here for it to supersede built-in styling
+        header.setCssProps({ "margin-bottom": "0px" })
         header.innerText = `${autoProp.key || "(no key set)"}`;
         panel.appendChild(header);
 
@@ -112,15 +112,15 @@ export class SampleSettingTab extends PluginSettingTab {
 
         const container = document.createElement("div");
         panel.appendChild(container);
-        if (header.innerText !== "(no key set)") container.style.display = 'none';
+        if (header.innerText !== "(no key set)") container.setCssProps({ 'display': 'none' })
 
         function toggleContainer() {
             if (container.style.display === 'none') {
-                container.style.display = 'block';
-                summary.style.display = 'none';
+                container.setCssProps({ 'display': 'block' });
+                summary.setCssProps({ 'display': 'none' });
             } else {
-                container.style.display = 'none';
-                summary.style.display = 'inline-block';
+                container.setCssProps({ 'display': 'none' });
+                summary.setCssProps({ 'display': 'inline-block' });
             }
         }
         header.onclick = toggleContainer
@@ -130,7 +130,7 @@ export class SampleSettingTab extends PluginSettingTab {
         const saveButton = document.createElement("button");
         updateSaveButtonStatus();
 
-        new Setting(container).setName("Property").addText(text => text.setValue(autoProp.key).setPlaceholder("Enter property name").onChange(async (value) => {
+        new Setting(container).setName("Property").addText(text => text.setValue(autoProp.key).setPlaceholder("Enter property name").onChange((value) => {
             wipAutoProp.key = value;
             updateSaveButtonStatus();
         })).setDesc("The name (key) of the property to run the rule against.").setClass('setting-key');
@@ -139,7 +139,7 @@ export class SampleSettingTab extends PluginSettingTab {
                 dropdown.addOption("first", "Pull the first line");
                 dropdown.addOption("all", "Pull all lines");
                 dropdown.addOption("count", "Count the lines");
-                dropdown.setValue(wipAutoProp.rulePartOne).onChange(async (value) => {
+                dropdown.setValue(wipAutoProp.rulePartOne).onChange((value) => {
                     wipAutoProp.rulePartOne = value as 'first' | 'all' | 'count';
                     updateSaveButtonStatus();
                 })
@@ -149,14 +149,14 @@ export class SampleSettingTab extends PluginSettingTab {
                 dropdown.addOption("contains", "containing");
                 dropdown.addOption("endsWith", "ending with");
                 dropdown.addOption("regex", "matching regex");
-                dropdown.setValue(wipAutoProp.rulePartTwo).onChange(async (value) => {
+                dropdown.setValue(wipAutoProp.rulePartTwo).onChange((value) => {
                     wipAutoProp.rulePartTwo = value as 'startsWith' | 'contains' | 'endsWith' | 'regex';
                     updateSaveButtonStatus();
                 });
-            }).addText(text => text.setPlaceholder("Enter value for the rule").setValue(autoProp.ruleValue).onChange(async (value) => {
+            }).addText(text => text.setPlaceholder("Enter value for the rule").setValue(autoProp.ruleValue).onChange((value) => {
                 wipAutoProp.ruleValue = value;
                 // If regex expressions include the "\", remove them
-                if(value.startsWith(`\\`) && value.endsWith(`\\`)){
+                if (value.startsWith(`\\`) && value.endsWith(`\\`)) {
                     wipAutoProp.ruleValue = value.slice(1, -1);
                 }
                 updateSaveButtonStatus();
@@ -170,7 +170,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         new Setting(modifierContainer).setName("Ignore whitespace")
             .addToggle(toggle => {
-                toggle.setValue(wipAutoProp.modifierWhitespace == 'trim').onChange(async (value) => {
+                toggle.setValue(wipAutoProp.modifierWhitespace == 'trim').onChange((value) => {
                     if (value) {
                         wipAutoProp.modifierWhitespace = 'trim';
                     } else {
@@ -181,7 +181,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         new Setting(modifierContainer).setName("Omit search string from result text")
             .addToggle(toggle => {
-                toggle.setValue(wipAutoProp.modifierOmitSearch == 'omit').onChange(async (value) => {
+                toggle.setValue(wipAutoProp.modifierOmitSearch == 'omit').onChange((value) => {
                     if (value) {
                         wipAutoProp.modifierOmitSearch = 'omit';
                     } else {
@@ -192,7 +192,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
         new Setting(modifierContainer).setName("Case sensitive")
             .addToggle(toggle => {
-                toggle.setValue(wipAutoProp.modifierCaseSensitive == 'sensitive').onChange(async (value) => {
+                toggle.setValue(wipAutoProp.modifierCaseSensitive == 'sensitive').onChange((value) => {
                     if (value) {
                         wipAutoProp.modifierCaseSensitive = 'sensitive';
                     } else {
@@ -201,7 +201,7 @@ export class SampleSettingTab extends PluginSettingTab {
                 });
             })
 
-        new Setting(container).setName("Enabled").addToggle(toggle => toggle.setValue(autoProp.enabled).onChange(async (value) => {
+        new Setting(container).setName("Enabled").addToggle(toggle => toggle.setValue(autoProp.enabled).onChange((value) => {
             wipAutoProp.enabled = value;
             updateSaveButtonStatus();
         }));
@@ -222,7 +222,7 @@ export class SampleSettingTab extends PluginSettingTab {
             Object.assign(autoProp, wipAutoProp);
             await this.plugin.saveSettings();
             this.display();
-            new Notice("Auto-Property saved");
+            new Notice("Auto-property saved");
         };
         buttonContainer.appendChild(saveButton);
 

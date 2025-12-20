@@ -1,4 +1,4 @@
-# Auto-Properties Plugin
+# Auto-properties Plugin
 
 > [!tip] Create auto-updating properties based on rules
 
@@ -17,7 +17,7 @@ Let your properties take care of themselves.
 
 ![example rule](assets/example-file.png)
 
-### Auto-Property Ruleset
+### Auto-property Ruleset
 
 You can have as many auto-properties as you want.
 

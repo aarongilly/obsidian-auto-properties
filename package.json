@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-auto-properties-plugin",
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "This is a plugin for Obsidian (https://obsidian.md) to autofill properties based on note content and rules.",
 	"main": "main.js",
 	"scripts": {

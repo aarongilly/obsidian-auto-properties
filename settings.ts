@@ -1,57 +1,25 @@
-import { App, Notice, PluginSettingTab, Setting, TFile } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import AutoPropertyPlugin from "./main";
 
-/*
-// export interface AutoPropertyPluginSettings {
-// 	mySetting: string;
-// }
-
-// export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
-// 	mySetting: 'default'
-// }
-
-// export class SampleSettingTab extends PluginSettingTab {
-// 	plugin: AutoPropertyPlugin;
-
-// 	constructor(app: App, plugin: AutoPropertyPlugin) {
-// 		super(app, plugin);
-// 		this.plugin = plugin;
-// 	}
-
-// 	display(): void {
-// 		const {containerEl} = this;
-
-// 		containerEl.empty();
-
-// 		new Setting(containerEl)
-// 			.setName('Settings #1')
-// 			.setDesc('It\'s a secret')
-// 			.addText(text => text
-// 				.setPlaceholder('Enter your secret')
-// 				.setValue(this.plugin.settings.mySetting)
-// 				.onChange(async (value) => {
-// 					this.plugin.settings.mySetting = value;
-// 					await this.plugin.saveSettings();
-// 				}));
-// 	}
-// }
-*/
-
 export interface AutoPropertyPluginSettings {
-    autopropertySettings: AutoPropertySetting[];
+    autopropertySettings: AutoPropRule[];
+    manualMode: boolean
 }
 
-export interface AutoPropertySetting {
+export interface AutoPropRule {
     key: string;
     enabled: boolean;
     rulePartOne: 'first' | 'all' | 'count';
-    rulePartTwo: 'startsWith' | 'contains' | 'endsWith'; // | 'regex';
+    rulePartTwo: 'startsWith' | 'contains' | 'endsWith' | 'regex';
     ruleValue: string;
-    rulePartThree: 'trim' | 'noTrim';
+    modifierWhitespace: 'trim' | 'noTrim';
+    modifierOmitSearch: 'none' | 'omit';
+    modifierCaseSensitive: 'sensitive' | 'insensitive'
 }
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
-    autopropertySettings: []
+    autopropertySettings: [],
+    manualMode: false
 }
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -67,30 +35,34 @@ export class SampleSettingTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        new Setting(containerEl).setDesc("DEVELOPMENT PURPOSES").addButton(button => {
-            button.setButtonText("LOG SETTINGS");
-            button.onClick(async () => {
-                console.log(this.plugin.settings.autopropertySettings);
-            });
-        });
-
         new Setting(containerEl).setName("Update all notes").setDesc("Properties auto-update each time a note changes, but if you want to update all notes at once you can click this button.").addButton(button => {
             button.setButtonText("Update all");
             button.onClick(async () => {
-                new Notice("#TODO")
-                console.log(this.plugin.settings.autopropertySettings);
+                this.plugin.updateAllNotes()
+                new Notice("Updated all auto-property values in vault")
             });
         });
 
-        let ruleHeading = document.createElement("h2");
-        ruleHeading.innerText = "Auto-Properties";
-        ruleHeading.addClass('my-head');
-        containerEl.appendChild(ruleHeading)
+        new Setting(containerEl).setName("Manual mode").setDesc("Disable 'run on file modification' feature.")
+            .addToggle(toggle => {
+                toggle.setValue(this.plugin.settings.manualMode).onChange(async (value) => {
+                    this.plugin.settings.manualMode = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+
+
+        let propertiesHeading = document.createElement("h2");
+        propertiesHeading.innerText = "Auto-Properties";
+        propertiesHeading.addClass('my-head');
+        containerEl.appendChild(propertiesHeading)
 
         this.plugin.settings.autopropertySettings.forEach((autoProp, index) => {
+            // Inflate a panel for each auto-property registered in the settings
             containerEl.appendChild(this.createAutoPropertyPanel(autoProp, index));
         });
 
+        // button to create a new blank auto-property
         const addButton = document.createElement("button");
         addButton.setText("Add Auto-Property");
         addButton.addClass('my-button');
@@ -101,7 +73,9 @@ export class SampleSettingTab extends PluginSettingTab {
                 rulePartOne: 'first',
                 rulePartTwo: 'startsWith',
                 ruleValue: '',
-                rulePartThree: 'noTrim'
+                modifierWhitespace: 'trim',
+                modifierOmitSearch: 'none',
+                modifierCaseSensitive: 'insensitive'
             });
             await this.plugin.saveSettings();
             this.display(); // Refresh the settings tab to show the new property
@@ -109,71 +83,133 @@ export class SampleSettingTab extends PluginSettingTab {
         containerEl.appendChild(addButton);
     }
 
-    createAutoPropertyPanel(autoProp: AutoPropertySetting, index: number): HTMLElement {
+    createAutoPropertyPanel(autoProp: AutoPropRule, index: number): HTMLElement {
         let wipAutoProp = {
             key: autoProp.key,
             enabled: autoProp.enabled,
             rulePartOne: autoProp.rulePartOne,
             rulePartTwo: autoProp.rulePartTwo,
             ruleValue: autoProp.ruleValue,
-            rulePartThree: autoProp.rulePartThree
+            modifierWhitespace: autoProp.modifierWhitespace,
+            modifierOmitSearch: autoProp.modifierOmitSearch,
+            modifierCaseSensitive: autoProp.modifierCaseSensitive
         }
         const panel = document.createElement("div");
         panel.addClass('property-panel');
+
+        const header = document.createElement("h3");
+        header.addClasses(["key-header", "clickable"]);
+        header.style.marginBottom = "0px"; //have to set this here for it to supersede built-in styling
+        header.innerText = `${autoProp.key || "(no key set)"}`;
+        panel.appendChild(header);
+
+        const summary = document.createElement("span")
+        let headerSummary = makeSummaryText(autoProp);
+        summary.innerText = headerSummary;
+        if (header.innerText === "(no key set)") summary.innerText = "- auto-property not configured";
+        summary.addClasses(['italic', 'clickable'])
+        panel.appendChild(summary);
+
+        const container = document.createElement("div");
+        panel.appendChild(container);
+        if (header.innerText !== "(no key set)") container.style.display = 'none';
+
+        function toggleContainer() {
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                summary.style.display = 'none';
+            } else {
+                container.style.display = 'none';
+                summary.style.display = 'inline-block';
+            }
+        }
+        header.onclick = toggleContainer
+        summary.onclick = toggleContainer
 
         //this is used later, but declared here for scoping
         const saveButton = document.createElement("button");
         updateSaveButtonStatus();
 
-        new Setting(panel).setName("Key").addText(text => text.setValue(autoProp.key).setPlaceholder("Enter key").onChange(async (value) => {
+        new Setting(container).setName("Property").addText(text => text.setValue(autoProp.key).setPlaceholder("Enter property name").onChange(async (value) => {
             wipAutoProp.key = value;
             updateSaveButtonStatus();
-        })).setDesc("The property key to run the rule against.");
-        new Setting(panel).setName("Rule")
+        })).setDesc("The name (key) of the property to run the rule against.").setClass('setting-key');
+        new Setting(container).setName("Rule")
             .addDropdown(dropdown => {
-                dropdown.addOption("first", "Pull the first line which");
-                dropdown.addOption("all", "Pull all lines which");
-                dropdown.addOption("count", "Count of each line that");
+                dropdown.addOption("first", "Pull the first line");
+                dropdown.addOption("all", "Pull all lines");
+                dropdown.addOption("count", "Count the lines");
                 dropdown.setValue(wipAutoProp.rulePartOne).onChange(async (value) => {
                     wipAutoProp.rulePartOne = value as 'first' | 'all' | 'count';
                     updateSaveButtonStatus();
                 })
             })
             .addDropdown(dropdown => {
-                dropdown.addOption("startsWith", "starts with");
-                dropdown.addOption("contains", "contains");
-                dropdown.addOption("endsWith", "ends with");
-                // dropdown.addOption("regex", "matches regex"); #TODO - implement regex handling
+                dropdown.addOption("startsWith", "starting with");
+                dropdown.addOption("contains", "containing");
+                dropdown.addOption("endsWith", "ending with");
+                dropdown.addOption("regex", "matching regex");
                 dropdown.setValue(wipAutoProp.rulePartTwo).onChange(async (value) => {
-                    wipAutoProp.rulePartTwo = value as 'startsWith' | 'contains' | 'endsWith';
+                    wipAutoProp.rulePartTwo = value as 'startsWith' | 'contains' | 'endsWith' | 'regex';
                     updateSaveButtonStatus();
                 });
             }).addText(text => text.setPlaceholder("Enter value for the rule").setValue(autoProp.ruleValue).onChange(async (value) => {
                 wipAutoProp.ruleValue = value;
+                // If regex expressions include the "\", remove them
+                if(value.startsWith(`\\`) && value.endsWith(`\\`)){
+                    wipAutoProp.ruleValue = value.slice(1, -1);
+                }
                 updateSaveButtonStatus();
             }))
 
-        new Setting(panel).setName("Whitespace").setDesc("Choose whether to trim whitespace from matched lines.")
-            .addDropdown(dropdown => {
-                dropdown.addOption("trim", "ignoring whitespace");
-                dropdown.addOption("noTrim", "including whitespace");
-                dropdown.setValue(wipAutoProp.rulePartThree).onChange(async (value) => {
-                    wipAutoProp.rulePartThree = value as 'trim' | 'noTrim';
+
+        const modifiersSetting = new Setting(container).setName("Modifiers")
+
+        const modifierContainer = document.createElement("div");
+        modifiersSetting.controlEl.appendChild(modifierContainer)
+
+        new Setting(modifierContainer).setName("Ignore whitespace")
+            .addToggle(toggle => {
+                toggle.setValue(wipAutoProp.modifierWhitespace == 'trim').onChange(async (value) => {
+                    if (value) {
+                        wipAutoProp.modifierWhitespace = 'trim';
+                    } else {
+                        wipAutoProp.modifierWhitespace = 'noTrim';
+                    }
                 });
             })
 
-        new Setting(panel).setName("Enabled").addToggle(toggle => toggle.setValue(autoProp.enabled).onChange(async (value) => {
+        new Setting(modifierContainer).setName("Omit search string from result text")
+            .addToggle(toggle => {
+                toggle.setValue(wipAutoProp.modifierOmitSearch == 'omit').onChange(async (value) => {
+                    if (value) {
+                        wipAutoProp.modifierOmitSearch = 'omit';
+                    } else {
+                        wipAutoProp.modifierOmitSearch = 'none';
+                    }
+                });
+            })
+
+        new Setting(modifierContainer).setName("Case sensitive")
+            .addToggle(toggle => {
+                toggle.setValue(wipAutoProp.modifierCaseSensitive == 'sensitive').onChange(async (value) => {
+                    if (value) {
+                        wipAutoProp.modifierCaseSensitive = 'sensitive';
+                    } else {
+                        wipAutoProp.modifierCaseSensitive = 'insensitive';
+                    }
+                });
+            })
+
+        new Setting(container).setName("Enabled").addToggle(toggle => toggle.setValue(autoProp.enabled).onChange(async (value) => {
             wipAutoProp.enabled = value;
             updateSaveButtonStatus();
         }));
 
         const buttonContainer = document.createElement("div");
         buttonContainer.addClass('button-container');
-        buttonContainer.style.display = 'grid';
-        buttonContainer.style.gap = '8px';
-        buttonContainer.style.gridTemplateColumns = '1fr 1fr';
 
-        saveButton.setText("Saved");
+        saveButton.setText("Save");
         saveButton.onclick = async () => {
             if (!wipAutoProp.key.trim()) {
                 new Notice("Key cannot be blank");
@@ -185,35 +221,59 @@ export class SampleSettingTab extends PluginSettingTab {
             }
             Object.assign(autoProp, wipAutoProp);
             await this.plugin.saveSettings();
-            saveButton.setText("Saved");
+            this.display();
             new Notice("Auto-Property saved");
         };
         buttonContainer.appendChild(saveButton);
 
         const deleteButton = document.createElement("button");
         deleteButton.setText("Delete");
-        deleteButton.addClass('mod-warning');
+        deleteButton.addClasses(['mod-warning', 'clickable']);
         deleteButton.onclick = async () => {
             this.plugin.settings.autopropertySettings.splice(index, 1);
             await this.plugin.saveSettings();
             this.display();
         };
         buttonContainer.appendChild(deleteButton);
-
-        panel.appendChild(buttonContainer);
+        container.appendChild(buttonContainer);
 
         // Key setting
         return panel;
+
+        //#region --- Local Helper Functions
 
         function updateSaveButtonStatus() {
             if (wipAutoProp.key.trim() && wipAutoProp.ruleValue.trim()) {
                 saveButton.removeAttribute("disabled");
                 saveButton.removeClass('mod-disabled');
+                saveButton.addClass('clickable')
                 saveButton.setText("Save!");
             } else {
                 saveButton.setAttribute("disabled", "true");
                 saveButton.addClass('mod-disabled');
+                saveButton.removeClass('clickable')
             }
         }
+
+        function makeSummaryText(prop: AutoPropRule): string {
+            const rulePartOneText = {
+                first: "Pull the first line",
+                all: "Pull all lines",
+                count: "Count the lines"
+            };
+
+            const rulePartTwoText = {
+                startsWith: "starting with",
+                contains: "containing",
+                endsWith: "ending with",
+                regex: "matching regex"
+            };
+
+            let text = `${rulePartOneText[prop.rulePartOne]} ${rulePartTwoText[prop.rulePartTwo]} "${prop.ruleValue}"`;
+            if (!prop.enabled) text = "- auto-property not enabled";
+            return text;
+        }
+
+        //#endregion
     }
 }

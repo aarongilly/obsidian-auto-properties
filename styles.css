@@ -29,4 +29,29 @@
 
 .button-container{
     margin-top: 8px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+}
+
+.key-header{
+    display: inline-block;
+    cursor: pointer;
+    margin-bottom: 0px;
+}
+
+.clickable{
+    cursor: pointer;
+}
+
+.clickable:hover{
+    font-weight: bold;
+}
+
+.italic{
+    font-style: oblique;
+}
+
+.setting-key{
+    margin-top: 8px;
 }

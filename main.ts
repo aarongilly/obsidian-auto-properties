@@ -1,12 +1,5 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, TFile } from 'obsidian';
-import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, SampleSettingTab, AutoPropertySetting } from "./settings";
-
-// Remember to rename these classes and interfaces!
-
-export interface AutoProperty {
-	key: string;
-	function: (bodyContent: string[], frontmatter: any, file: TFile) => any;
-}
+import { MarkdownView, Plugin, TFile } from 'obsidian';
+import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, SampleSettingTab, AutoPropRule } from "./settings";
 
 export default class AutoPropertyPlugin extends Plugin {
 	settings: AutoPropertyPluginSettings;
@@ -19,33 +12,12 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.lastRun = new Date();
 
-		// This adds an editor command that can perform some operation on the current editor instance
-		// this.addCommand({
-		// 	id: 'replace-selected',
-		// 	name: 'Replace selected content',
-		// 	editorCallback: (editor: Editor, view: MarkdownView) => {
-		// 		editor.replaceSelection('Sample editor command');
-		// 	}
-		// });
-
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
+		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Add auto-property to note',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
+			id: 'update-all',
+			name: 'Update properties across vault',
+			callback: () => {
+				this.updateAllNotes()
 			}
 		});
 
@@ -55,6 +27,11 @@ export default class AutoPropertyPlugin extends Plugin {
 		// The main part of the plugin, listening to file changes & updating properties
 		this.registerEvent(this.app.vault.on('modify', async (e) => {
 
+			// if manual mode, skip doing anything.
+			// Realistically I should probably de-register the event listener
+			// but this is easier and has the same effect from what I can tell
+			if (this.settings.manualMode) return;
+
 			// Prevent infinite loop by checking time since last update
 			const now = new Date();
 			const timeDiff = now.getTime() - this.lastRun.getTime();
@@ -63,9 +40,6 @@ export default class AutoPropertyPlugin extends Plugin {
 				return;
 			}
 			this.lastRun = now;
-
-			// Obtain path of modified file
-			const path = e.path;
 
 			// Safely work toward getting file content and frontmatter
 			const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView)
@@ -80,39 +54,13 @@ export default class AutoPropertyPlugin extends Plugin {
 
 			// Pull directly from editor to ensure we have the latest content
 			const content = editor.getDoc().getValue();
-			const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
 
-			this.app.fileManager.processFrontMatter(file, async (frontmatter) => {
-
-				const keys = Object.keys(frontmatter);
-
-				if (keys.length === 0) {
-					return;
-				}
-
-				keys.forEach((key) => {
-
-					//check if key is registered with a formula in settings
-					//if so, evaluate formula and update frontmatter
-					let matchedProperty = this.settings.autopropertySettings.find((autoProp) => {
-						return autoProp.key === key && autoProp.enabled;
-					})
-
-					if (!matchedProperty) return;
-
-					// Evaluate the function associated with the key
-					const newValue = AutoPropertyPlugin.applyRule(matchedProperty, bodyContent);
-
-					// Update frontmatter if the value has changed
-					if (frontmatter[key] !== newValue) {
-						frontmatter[key] = newValue;
-					}
-				})
-			})
+			this.applyAllRulesToFile(file, content);
 		}));
 	}
 
 	onunload() {
+		// nothing to do
 	}
 
 	async loadSettings() {
@@ -122,6 +70,68 @@ export default class AutoPropertyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	async updateAllNotes() {
+		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
+		allNotes.forEach(note => this.applyAllRulesToFile(note))
+	}
+
+	async applyAllRulesToFile(file: TFile, content?: string) {
+
+		if (!content) content = await this.app.vault.read(file)
+		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
+
+		this.app.fileManager.processFrontMatter(file, async (frontmatter) => {
+
+			const keys = Object.keys(frontmatter);
+
+			if (keys.length === 0) {
+				return;
+			}
+
+			keys.forEach((key) => {
+
+				//check if key is registered with a formula in settings
+				//if so, evaluate formula and update frontmatter
+				let matchedProperty = this.settings.autopropertySettings.find((autoProp) => {
+					return autoProp.key === key && autoProp.enabled;
+				})
+
+				if (!matchedProperty) return;
+
+				// Evaluate the function associated with the key
+				const newValue = AutoPropertyPlugin.getValue(matchedProperty, bodyContent);
+
+				// Update frontmatter if the value has changed
+				if (frontmatter[key] !== newValue) {
+					frontmatter[key] = newValue;
+				}
+			})
+		})
+	}
+
+	// async applyAllRulesToFileDANGEROUSLINKVERSION(file: TFile) {
+	// Thought here is to enable a "Create link" modifier to make the properties
+	// functional links to the blocks they represent. This way you can, in effect,
+	// update the property by clicking on it, then changing the source in the note.
+	// However - this also opens up the Pandora's Box of **modifying note content**.
+	// This would be a valuable thing to be able to do - but would require more work
+	// to do safely than I have time for right now.
+
+	// This would have to **replace** the "getValue" approach.
+	// You would NOT want to do modify the frontmatter several times in a row 
+	// as part of a loop, but all at once - alongside a full body replacement to
+	// include link target blockIds
+
+	// You'd need to:
+	//  - modify the body of the note to include a ^blockID for each match
+	//  - modify all the frontmatter to include the text `[[#^blockId|{}]]`
+	//  - make **all** those changes **at once**
+	//  - be 100% sure you don't have a bug that deletes content!!!
+	//  - stop any infinite modification loops from happening
+	// }
+
+	//#region --- Static Helper Methods ---
 
 	static extractBodyLines(fileRawText: string): string[] {
 
@@ -140,56 +150,84 @@ export default class AutoPropertyPlugin extends Plugin {
 		return lines.slice(i);
 	}
 
-	static applyRule(autoProp: AutoPropertySetting, bodyContent: string): any {
+	static extractFrontmatter(fileRawText: string): string {
+		const lines = fileRawText.split(/\r\n|\r|\n/);
+		if (lines[0] !== '---') {
+			return '';
+		}
+		let i = 1;
+		while (i < lines.length && lines[i] !== '---') {
+			i++;
+		}
+		return lines.slice(1, i).join('\n');
+	}
+
+	static getValue(autoProp: AutoPropRule, bodyContent: string): any {
 		const lines = bodyContent.split(/\r\n|\r|\n/);
 		let matches: string | any[] = [];
 
-		if (autoProp.rulePartTwo === 'startsWith') {
-			matches = lines.filter((line) => {
-				if (autoProp.rulePartThree === 'trim') return line.trim().startsWith(autoProp.ruleValue);
-				return line.startsWith(autoProp.ruleValue);
-			});
-		} else if (autoProp.rulePartTwo === 'contains') {
-			matches = lines.filter((line) => {
-				return line.includes(autoProp.ruleValue);
-			});
-		} else if (autoProp.rulePartTwo === 'endsWith') {
-			matches = lines.filter((line) => {
-				if (autoProp.rulePartThree === 'trim') return line.trim().endsWith(autoProp.ruleValue);
-				return line.endsWith(autoProp.ruleValue);
-			});
-		}
+		matches = lines.filter(line => AutoPropertyPlugin.lineMatchesRule(line, autoProp))
 
-		console.log(matches);
 		if (autoProp.rulePartOne === 'count') {
 			return matches.length;
 		}
 
 		if (matches.length === 0) return ''
-		
-		if(autoProp.rulePartThree === 'trim') matches[0] = matches[0].trim();
+
+		if (autoProp.modifierOmitSearch === 'omit') {
+			matches = matches.map(matchedLine => matchedLine.replaceAll(autoProp.ruleValue, ''))
+		}
+
+		if (autoProp.modifierWhitespace === 'trim') {
+			matches = matches.map(matchedLine => matchedLine.trim())
+		}
+
+		if (true) {
+			matches = matches.map(matchedLine => {
+				if (!AutoPropertyPlugin.hasLinkTarget(matchedLine)) return matchedLine
+				const blockId = AutoPropertyPlugin.extractBlockIdFromLine(matchedLine)
+				let valueLessBlockId = matchedLine.replaceAll(blockId, '')
+				return `[[#${blockId.trim()}|${valueLessBlockId}]]`
+			})
+		}
+
 		//a nice to have, if teh ruleValue is an embed, remove the ! from start to better align with obsidian behavior
-		if(autoProp.ruleValue.startsWith('!')) matches[0] = matches[0].slice(1);
+		if (autoProp.ruleValue.startsWith('!')) matches[0] = matches[0].slice(1);
 		if (autoProp.rulePartOne === 'first') {
 			return matches[0];
 		} else if (autoProp.rulePartOne === 'all') {
 			return matches;
 		}
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	static extractBlockIdFromLine(textLine: string): string {
+		const match = textLine.match(/\s+\^\w+$/);
+		return match ? match[0] : '';
 	}
 
-	onOpen() {
-		let { contentEl } = this;
-		contentEl.setText('#TODO!');
+	static hasLinkTarget(textLine: string): boolean {
+		return /\s+\^\w+$/.test(textLine);
 	}
 
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
+	static lineMatchesRule(line: string, autoProp: AutoPropRule): boolean {
+		if(autoProp.modifierCaseSensitive === 'insensitive'){
+			line = line.toLowerCase();
+			autoProp.ruleValue = autoProp.ruleValue.toLowerCase()
+		}
+		if (autoProp.rulePartTwo === 'startsWith') {
+			if (autoProp.modifierWhitespace === 'trim') return line.trim().startsWith(autoProp.ruleValue);
+			return line.startsWith(autoProp.ruleValue);
+		} else if (autoProp.rulePartTwo === 'contains') {
+			return line.includes(autoProp.ruleValue);
+		} else if (autoProp.rulePartTwo === 'endsWith') {
+			if (autoProp.modifierWhitespace === 'trim') return line.trim().endsWith(autoProp.ruleValue);
+			return line.endsWith(autoProp.ruleValue);
+		} else if (autoProp.rulePartTwo === 'regex') {
+			if (autoProp.modifierWhitespace === 'trim') return new RegExp(autoProp.ruleValue).test(line.trim());
+			return new RegExp(autoProp.ruleValue).test(line.trim());
+		}
+		return false
 	}
+
+	//#endregion
 }

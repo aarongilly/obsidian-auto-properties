@@ -75,3 +75,17 @@ The plugin tries to do as little "magic under the hood" stuff as possible - but 
 - targeting embeds (via search string `![[`) will convert to a clickable link
 - targeting blocks that have a block ID will convert to a clickable link to that block
   - i.e. it will make links for blocks ending with a space, carrot, and some text ^likethis
+
+## Trigger Modes
+
+### On Update
+
+After a brief pause in typing, auto-properties will update (if changess are needed)
+
+### On File Focus Change
+
+When switching between tabs, the tab you just left will be processed to have its proerties updated.
+
+### Manually
+
+Will only update properties when you run the `Auto-properties: Update Auto-properties` command.

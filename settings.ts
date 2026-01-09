@@ -149,10 +149,10 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 })
             })
             .addDropdown(dropdown => {
-                dropdown.addOption("startsWith", "starting with");
-                dropdown.addOption("contains", "containing");
-                dropdown.addOption("endsWith", "ending with");
-                dropdown.addOption("regex", "matching regex");
+                dropdown.addOption("startsWith", "Starting with");
+                dropdown.addOption("contains", "Containing");
+                dropdown.addOption("endsWith", "Ending with");
+                dropdown.addOption("regex", "Matching regex");
                 dropdown.setValue(wipAutoProp.rulePartTwo).onChange((value) => {
                     wipAutoProp.rulePartTwo = value as 'startsWith' | 'contains' | 'endsWith' | 'regex';
                     updateSaveButtonStatus();

@@ -47,35 +47,6 @@ This plugin updates frontmatter of your notes using rules that act on their body
 	- *Case sensitive* - whether or not "THIS" is the same as "tHiS"
 - **Enabled** - you can toggle rules on/off without deleting them
 
-## Use Cases
-
-My use case was based on pulling the first open task into a property... but you can do much more.
-
-- All open tasks
-- First open task
-- First task with status
-- First line with tag (text)
-- All lines with whatever text
-- First embed image
-
-# Design Considerations
-
-## You specify the keys & rules
-
-You have control over the keys (property names) you do and don't want to have rules for. You control what the rules do.
-
-## Note bodies are never changed
-
-This plugin **only updates note properties**. It will not update the body of the note, by design.
-
-## Few "smart" touches
-
-The plugin tries to do as little "magic under the hood" stuff as possible - but does do a couple of things to work better with how Obsidian works.
-
-- targeting embeds (via search string `![[`) will convert to a clickable link
-- targeting blocks that have a block ID will convert to a clickable link to that block
-  - i.e. it will make links for blocks ending with a space, carrot, and some text ^likethis
-
 ## Trigger Modes
 
 ### On Update
@@ -89,3 +60,37 @@ When switching between tabs, the tab you just left will be processed to have its
 ### Manually
 
 Will only update properties when you run the `Auto-properties: Update Auto-properties` command.
+
+## Use Cases
+
+My use case was based on pulling the first open task into a property... but you can do much more.
+
+- All open tasks
+- First open task
+- First task with status
+- First line with tag (or any given text)
+- All lines with whatever text
+- First embeded image
+
+# Design Considerations
+
+## Do *one* thing
+
+This plugin is intentionally *small*. It does one thing. No unncessary overhead. Maximum modularity.
+
+## You specify the keys & rules
+
+You have control over the keys (property names) you do and don't want to have rules for. You control what the rules do.
+
+## Note bodies are never changed
+
+For safety, this plugin **only updates note properties**. It will never modify the body of the note. This prevents accidental data loss. 
+
+## Few "smart" touches
+
+The plugin tries to do as little "magic under the hood" stuff as possible - but *does* do a couple of things to work better with how Obsidian works.
+
+- targeting embeds (via search string `![[`) will convert to a clickable link
+- targeting blocks that have a block ID will convert to a clickable link to that block
+  - i.e. it will make links for blocks ending with a space, carrot, and some text ^likethis
+

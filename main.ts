@@ -1,24 +1,28 @@
-import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
-import { DEFAULT_SETTINGS, AutoPropertyPluginSettings, AutoPropertiesSettingsTab, AutoPropRule } from "./settings";
+import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian'
+import {
+	DEFAULT_SETTINGS,
+	AutoPropertyPluginSettings,
+	AutoPropertiesSettingsTab,
+	AutoPropRule
+} from './settings'
 
 export default class AutoPropertyPlugin extends Plugin {
-	settings: AutoPropertyPluginSettings;
+	settings: AutoPropertyPluginSettings
 
 	// to prevent infinite loops, track when the last update was made
 	lastRun: Date
 
 	// supporting the active-leaf-change trigger
-	private lastActiveFile: TFile | null = null;
+	private lastActiveFile: TFile | null = null
 
-
-	async onload() {
-		await this.loadSettings();
+	async onload () {
+		await this.loadSettings()
 
 		this.app.workspace.onLayoutReady(() => {
-			this.lastActiveFile = this.app.workspace.getActiveFile();
-		});
+			this.lastActiveFile = this.app.workspace.getActiveFile()
+		})
 
-		this.lastRun = new Date();
+		this.lastRun = new Date()
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -27,7 +31,7 @@ export default class AutoPropertyPlugin extends Plugin {
 			callback: () => {
 				this.updateAllNotes()
 			}
-		});
+		})
 
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
@@ -35,7 +39,8 @@ export default class AutoPropertyPlugin extends Plugin {
 			name: 'Update auto-properties',
 			checkCallback: (checking: boolean) => {
 				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				const markdownView =
+					this.app.workspace.getActiveViewOfType(MarkdownView)
 				if (markdownView) {
 					// If checking is true, we're simply "checking" if the command can be run.
 					// If checking is false, then we want to actually perform the operation.
@@ -45,166 +50,206 @@ export default class AutoPropertyPlugin extends Plugin {
 					}
 
 					// This command will only show up in Command Palette when the check function returns true
-					return true;
+					return true
 				}
-				return false;
+				return false
 			}
-		});
+		})
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new AutoPropertiesSettingsTab(this.app, this));
+		this.addSettingTab(new AutoPropertiesSettingsTab(this.app, this))
 
 		// The main part of the plugin, listening to file changes & updating properties
-		this.registerEvent(this.app.vault.on('modify', (e) => {
+		this.registerEvent(
+			this.app.vault.on('modify', e => {
+				// if not in this mode, immediately end execution
+				if (this.settings.mode !== 'modify') return
 
-			// if not in this mode, immediately end execution
-			if (this.settings.mode !== 'modify') return;
+				// Prevent infinite loop by checking time since last update
+				const now = new Date()
+				const timeDiff = now.getTime() - this.lastRun.getTime()
+				if (timeDiff < 2000) {
+					// Less than 2 seconds since last update, skip processing
+					return
+				}
+				this.lastRun = now
 
-			// Prevent infinite loop by checking time since last update
-			const now = new Date();
-			const timeDiff = now.getTime() - this.lastRun.getTime();
-			if (timeDiff < 2000) {
-				// Less than 2 seconds since last update, skip processing
-				return;
-			}
-			this.lastRun = now;
+				// Safely work toward getting file content and frontmatter
+				const markdownView =
+					this.app.workspace.getActiveViewOfType(MarkdownView)
+				if (!markdownView) return
 
-			// Safely work toward getting file content and frontmatter
-			const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView)
-			if (!markdownView) return;
+				const file = markdownView.file
+				if (!file) return
 
-			const file = markdownView.file;
-			if (!file) return;
+				// Grab content from editor - no need to access disk
+				const editor =
+					this.app.workspace.getActiveViewOfType(MarkdownView)?.editor
+				if (!editor) return
 
-			// Grab content from editor - no need to access disk
-			const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
-			if (!editor) return
+				// Pull directly from editor to ensure we have the latest content
+				const content = editor.getDoc().getValue()
 
-			// Pull directly from editor to ensure we have the latest content
-			const content = editor.getDoc().getValue();
-
-			//marked void simply to tell eslint I don't expect to do anything with the promise
-			void this.applyAllRulesToFile(file, content);
-		}));
-
-
+				//marked void simply to tell eslint I don't expect to do anything with the promise
+				void this.applyAllRulesToFile(file, content)
+			})
+		)
 
 		// This is the other option for running the update, as an alternative to the modify/manual options
 		// The main part of the plugin, listening to file changes & updating properties
-		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf: WorkspaceLeaf | null) => {
+		this.registerEvent(
+			this.app.workspace.on(
+				'active-leaf-change',
+				async (leaf: WorkspaceLeaf | null) => {
+					const previousFile = this.lastActiveFile
+					const currentFile = this.getFileFromLeaf(leaf)
+					this.lastActiveFile = currentFile
 
-			const previousFile = this.lastActiveFile;
-			const currentFile = this.getFileFromLeaf(leaf);
-			this.lastActiveFile = currentFile;
+					// if not in this mode, immediately end execution
+					if (this.settings.mode !== 'active-leaf-change') return
+					if (previousFile === null) return
 
-			// if not in this mode, immediately end execution
-			if (this.settings.mode !== 'active-leaf-change') return;
-			if (previousFile === null) return;
+					// Prevent infinite loop by checking time since last update
+					const now = new Date()
+					const timeDiff = now.getTime() - this.lastRun.getTime()
+					if (timeDiff < 2000) {
+						// Less than 2 seconds since last update, skip processing
+						return
+					}
+					this.lastRun = now
 
-			// Prevent infinite loop by checking time since last update
-			const now = new Date();
-			const timeDiff = now.getTime() - this.lastRun.getTime();
-			if (timeDiff < 2000) {
-				// Less than 2 seconds since last update, skip processing
-				return;
-			}
-			this.lastRun = now;
-
-			//marked void simply to tell eslint I don't expect to do anything with the promise
-			void this.applyAllRulesToFile(previousFile);
-		}));
+					//marked void simply to tell eslint I don't expect to do anything with the promise
+					void this.applyAllRulesToFile(previousFile)
+				}
+			)
+		)
 	}
 
-	private getFileFromLeaf(leaf: WorkspaceLeaf | null): TFile | null {
-		if (!leaf) return null;
+	private getFileFromLeaf (leaf: WorkspaceLeaf | null): TFile | null {
+		if (!leaf) return null
 
-		const view = leaf.view;
+		const view = leaf.view
 
 		if (view instanceof MarkdownView) {
-			return view.file;
+			return view.file
 		}
 
-		return null;
+		return null
 	}
 
-
-	onunload() {
+	onunload () {
 		// nothing to do
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<AutoPropertyPluginSettings>);
+	async loadSettings () {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			(await this.loadData()) as Partial<AutoPropertyPluginSettings>
+		)
 	}
 
-	async saveSettings() {
-		await this.saveData(this.settings);
+	async saveSettings () {
+		await this.saveData(this.settings)
 	}
 
-	updateAllNotes() {
-		const allNotes = this.app.vault.getFiles().filter(file => file.extension === 'md');
-		new Notice("Updating every auto-property in every note")
-		allNotes.forEach(note => void this.applyAllRulesToFile(note, undefined, false))
+	updateAllNotes () {
+		const allNotes = this.app.vault
+			.getFiles()
+			.filter(file => file.extension === 'md')
+		new Notice('Updating every auto-property in every note')
+		allNotes.forEach(
+			note => void this.applyAllRulesToFile(note, undefined, false)
+		)
 	}
 
-	async applyAllRulesToFile(file: TFile, content?: string, reportTotalChanges = true) {
-
-		let inIgnoredPath = false;
-		this.settings.pathsToIgnore.forEach((path) => {
+	async applyAllRulesToFile (
+		file: TFile,
+		content?: string,
+		reportTotalChanges = true
+	) {
+		let inIgnoredPath = false
+		this.settings.pathsToIgnore.forEach(path => {
 			if (file.path.startsWith(path)) {
-				inIgnoredPath = true;
+				inIgnoredPath = true
 			}
-		});
-		if(inIgnoredPath) return;
+		})
+		if (inIgnoredPath) return
 
+			console.log(file)
 		if (!content) content = await this.app.vault.read(file)
-		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
+		const bodyContent =
+			AutoPropertyPlugin.extractBodyLines(content).join('\n')
 
-		let propertiesChanged: number = 0;
+		let propertiesChanged: number = 0
 
-		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-			
-			const keys = Object.keys(frontmatter);
+		await this.app.fileManager.processFrontMatter(file, frontmatter => {
+			const keys = Object.keys(frontmatter)
 
-			keys.forEach((key) => {
-
+			keys.forEach(key => {
 				//check if key is registered with a formula in settings
 				//if so, evaluate formula and update frontmatter
-				let matchedProperty = this.settings.autopropertySettings.find((autoProp) => {
-					return autoProp.key === key && autoProp.enabled;
-				})
+				let matchedProperty = this.settings.autopropertySettings.find(
+					autoProp => {
+						return autoProp.key === key && autoProp.enabled
+					}
+				)
 
-				if (!matchedProperty) return;
+				if (!matchedProperty) return
 
 				// Evaluate the function associated with the key
-				const newValue = AutoPropertyPlugin.getValue(matchedProperty, bodyContent);
+				const newValue = AutoPropertyPlugin.getValue(
+					matchedProperty,
+					bodyContent,
+					file
+				)
 
 				// Check if anything has changed
 				if (frontmatter[key] === newValue) return // same result
 				if (frontmatter[key] !== null && newValue !== null) {
-					if (frontmatter[key].toString() === newValue?.toString()) return // array contains same content
+					if (frontmatter[key].toString() === newValue?.toString())
+						return // array contains same content
 				}
 
-				frontmatter[key] = newValue;
-				propertiesChanged = propertiesChanged + 1;
-
+				frontmatter[key] = newValue
+				propertiesChanged = propertiesChanged + 1
 			})
 
 			// Automatically add properties to the note if the rule matches and autoAdd is enabled
-			this.settings.autopropertySettings.forEach((autoProp) => {
+			this.settings.autopropertySettings.forEach(autoProp => {
 				// Skip if the property already exists in the frontmatter (would already have been checked & updated)
-				if (autoProp.autoAdd && !frontmatter.hasOwnProperty(autoProp.key)) {
-					const newValue = AutoPropertyPlugin.getValue(autoProp, bodyContent);
-					if (newValue !== undefined && newValue !== null && newValue !== '') {
-						frontmatter[autoProp.key] = newValue;
-						propertiesChanged = propertiesChanged + 1;
+				if (
+					autoProp.autoAdd &&
+					!frontmatter.hasOwnProperty(autoProp.key)
+				) {
+					const newValue = AutoPropertyPlugin.getValue(
+						autoProp,
+						bodyContent,
+						file
+					)
+					if (
+						newValue !== undefined &&
+						newValue !== null &&
+						newValue !== ''
+					) {
+						frontmatter[autoProp.key] = newValue
+						propertiesChanged = propertiesChanged + 1
 					}
 				}
-			});
+			})
 		})
 
 		// Display a message if changes were made & if the user wants to see them
-		if (reportTotalChanges && propertiesChanged > 0 && this.settings.showNotices) {
-			new Notice(`Updated ${propertiesChanged} auto-propert${propertiesChanged === 1 ? 'y' : 'ies'}`)
+		if (
+			reportTotalChanges &&
+			propertiesChanged > 0 &&
+			this.settings.showNotices
+		) {
+			new Notice(
+				`Updated ${propertiesChanged} auto-propert${
+					propertiesChanged === 1 ? 'y' : 'ies'
+				}`
+			)
 		}
 	}
 
@@ -217,7 +262,7 @@ export default class AutoPropertyPlugin extends Plugin {
 	// to do safely than I have time for right now.
 
 	// This would have to **replace** the "getValue" approach.
-	// You would NOT want to do modify the frontmatter several times in a row 
+	// You would NOT want to do modify the frontmatter several times in a row
 	// as part of a loop, but all at once - alongside a full body replacement to
 	// include link target blockIds
 
@@ -231,49 +276,63 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	//#region --- Static Helper Methods ---
 
-	static extractBodyLines(fileRawText: string): string[] {
-
-		const lines = fileRawText.split(/\r\n|\r|\n/);
+	static extractBodyLines (fileRawText: string): string[] {
+		const lines = fileRawText.split(/\r\n|\r|\n/)
 		if (lines[0] !== '---') {
-			return lines;
+			return lines
 		}
-		let i = 1;
+		let i = 1
 		while (i < lines.length && lines[i] !== '---') {
-			i++;
+			i++
 		}
 		// Skip the closing '---' line
 		if (i < lines.length) {
-			i++;
+			i++
 		}
-		return lines.slice(i);
+		return lines.slice(i)
 	}
 
-	static extractFrontmatter(fileRawText: string): string {
-		const lines = fileRawText.split(/\r\n|\r|\n/);
+	static extractFrontmatter (fileRawText: string): string {
+		const lines = fileRawText.split(/\r\n|\r|\n/)
 		if (lines[0] !== '---') {
-			return '';
+			return ''
 		}
-		let i = 1;
+		let i = 1
 		while (i < lines.length && lines[i] !== '---') {
-			i++;
+			i++
 		}
-		return lines.slice(1, i).join('\n');
+		return lines.slice(1, i).join('\n')
 	}
 
-	static getValue(autoProp: AutoPropRule, bodyContent: string): string | string[] | number | boolean | undefined {
-		const lines = bodyContent.split(/\r\n|\r|\n/);
-		let matches: string[] = [];
+	static getValue (
+		autoProp: AutoPropRule,
+		bodyContent: string,
+		file: TFile
+	): string | string[] | number | boolean | undefined {
+		if (autoProp.rule === 'modified') return getDateString(new Date(file.stat.mtime))
+		if (autoProp.rule === 'created') return getDateString(new Date(file.stat.ctime))
+			
+		if (autoProp.rule === 'characterCount') {
+			return bodyContent.length
+		}
 
-		matches = lines.filter(line => AutoPropertyPlugin.lineMatchesRule(line, autoProp))
+		const lines = bodyContent.split(/\r\n|\r|\n/)
+		let matches: string[] = []
+
+		matches = lines.filter(line =>
+			AutoPropertyPlugin.lineMatchesRule(line, autoProp)
+		)
 
 		if (autoProp.rulePartOne === 'count') {
-			return matches.length;
+			return matches.length
 		}
 
 		if (matches.length === 0) return ''
 
 		if (autoProp.modifierOmitSearch === 'omit') {
-			matches = matches.map(matchedLine => matchedLine.split(autoProp.ruleValue).join(''))
+			matches = matches.map(matchedLine =>
+				matchedLine.split(autoProp.ruleValue).join('')
+			)
 		}
 
 		if (autoProp.modifierWhitespace === 'trim') {
@@ -282,49 +341,66 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		// Look for possible block IDs and, if found, convert to links to said blocks
 		matches = matches.map(matchedLine => {
-			if (!AutoPropertyPlugin.hasLinkTarget(matchedLine)) return matchedLine
-			const blockId = AutoPropertyPlugin.extractBlockIdFromLine(matchedLine)
+			if (!AutoPropertyPlugin.hasLinkTarget(matchedLine))
+				return matchedLine
+			const blockId =
+				AutoPropertyPlugin.extractBlockIdFromLine(matchedLine)
 			let valueLessBlockId = matchedLine.split(blockId).join('')
 			return `[[#${blockId.trim()}|${valueLessBlockId}]]`
 		})
 
-		//a nice to have, if teh ruleValue is an embed, remove the ! from start to better align with obsidian behavior
-		if (autoProp.ruleValue.startsWith('!')) matches[0] = matches[0].slice(1);
+		//a nice to have, if the ruleValue is an embed, remove the ! from start to better align with obsidian behavior
+		if (autoProp.ruleValue.startsWith('!')) matches[0] = matches[0].slice(1)
 		if (autoProp.rulePartOne === 'first') {
-			return matches[0];
+			return matches[0]
 		} else if (autoProp.rulePartOne === 'all') {
-			return matches;
+			return matches
 		}
 	}
 
-	static extractBlockIdFromLine(textLine: string): string {
-		const match = textLine.match(/\s+\^\w+$/);
-		return match ? match[0] : '';
+	static extractBlockIdFromLine (textLine: string): string {
+		const match = textLine.match(/\s+\^\w+$/)
+		return match ? match[0] : ''
 	}
 
-	static hasLinkTarget(textLine: string): boolean {
-		return /\s+\^\w+$/.test(textLine);
+	static hasLinkTarget (textLine: string): boolean {
+		return /\s+\^\w+$/.test(textLine)
 	}
 
-	static lineMatchesRule(line: string, autoProp: AutoPropRule): boolean {
+	static lineMatchesRule (line: string, autoProp: AutoPropRule): boolean {
 		if (autoProp.modifierCaseSensitive === 'insensitive') {
-			line = line.toLowerCase();
+			line = line.toLowerCase()
 			autoProp.ruleValue = autoProp.ruleValue.toLowerCase()
 		}
 		if (autoProp.rulePartTwo === 'startsWith') {
-			if (autoProp.modifierWhitespace === 'trim') return line.trim().startsWith(autoProp.ruleValue);
-			return line.startsWith(autoProp.ruleValue);
+			if (autoProp.modifierWhitespace === 'trim')
+				return line.trim().startsWith(autoProp.ruleValue)
+			return line.startsWith(autoProp.ruleValue)
 		} else if (autoProp.rulePartTwo === 'contains') {
-			return line.includes(autoProp.ruleValue);
+			return line.includes(autoProp.ruleValue)
 		} else if (autoProp.rulePartTwo === 'endsWith') {
-			if (autoProp.modifierWhitespace === 'trim') return line.trim().endsWith(autoProp.ruleValue);
-			return line.endsWith(autoProp.ruleValue);
+			if (autoProp.modifierWhitespace === 'trim')
+				return line.trim().endsWith(autoProp.ruleValue)
+			return line.endsWith(autoProp.ruleValue)
 		} else if (autoProp.rulePartTwo === 'regex') {
-			if (autoProp.modifierWhitespace === 'trim') return new RegExp(autoProp.ruleValue).test(line.trim());
-			return new RegExp(autoProp.ruleValue).test(line.trim());
+			if (autoProp.modifierWhitespace === 'trim')
+				return new RegExp(autoProp.ruleValue).test(line.trim())
+			return new RegExp(autoProp.ruleValue).test(line.trim())
 		}
 		return false
 	}
 
 	//#endregion
 }
+
+//#region --- Helper Functions ---
+function getDateString(date: Date = new Date()): string {
+	const year = date.getFullYear()
+	const month = String(date.getMonth() + 1).padStart(2, '0')
+	const day = String(date.getDate()).padStart(2, '0')
+	const hours = String(date.getHours()).padStart(2, '0')
+	const minutes = String(date.getMinutes()).padStart(2, '0')
+	const seconds = String(date.getSeconds()).padStart(2, '0')
+	return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+}
+//#endregion

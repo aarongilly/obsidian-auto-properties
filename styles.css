@@ -40,6 +40,10 @@
     margin-bottom: 0px;
 }
 
+.highlight{
+    background-color: green;
+}
+
 .clickable{
     cursor: pointer;
 }
@@ -56,8 +60,12 @@
     margin-top: 8px;
 }
 
-.modifier-container{
+.rules-container{
     border: 1px dotted #444;
     border-radius: 5px;
     padding: 8px;
+}
+
+.hide{
+    display: none;
 }

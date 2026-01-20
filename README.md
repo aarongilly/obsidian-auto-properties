@@ -94,3 +94,13 @@ The plugin tries to do as little "magic under the hood" stuff as possible - but 
 - targeting blocks that have a block ID will convert to a clickable link to that block
   - i.e. it will make links for blocks ending with a space, carrot, and some text ^likethis
 
+# Installation
+
+This is in queue to be added to the Obsidian Community plugins page. It will hopefully be added there soon!
+
+In the meantime, you can install via BRAT. I used to think this was an involved process, but it's actually quite easy.
+
+1. Install BRAT & enable it
+2. In BRAT settings, click "Add Plugin"
+3. Copy & paste this repo's URL into BRATs settings
+4. Done.

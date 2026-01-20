@@ -148,18 +148,22 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	async applyAllRulesToFile(file: TFile, content?: string, reportTotalChanges = true) {
 
+		let inIgnoredPath = false;
+		this.settings.pathsToIgnore.forEach((path) => {
+			if (file.path.startsWith(path)) {
+				inIgnoredPath = true;
+			}
+		});
+		if(inIgnoredPath) return;
+
 		if (!content) content = await this.app.vault.read(file)
 		const bodyContent = AutoPropertyPlugin.extractBodyLines(content).join('\n');
 
 		let propertiesChanged: number = 0;
 
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-
+			
 			const keys = Object.keys(frontmatter);
-
-			if (keys.length === 0) {
-				return;
-			}
 
 			keys.forEach((key) => {
 
@@ -184,6 +188,18 @@ export default class AutoPropertyPlugin extends Plugin {
 				propertiesChanged = propertiesChanged + 1;
 
 			})
+
+			// Automatically add properties to the note if the rule matches and autoAdd is enabled
+			this.settings.autopropertySettings.forEach((autoProp) => {
+				// Skip if the property already exists in the frontmatter (would already have been checked & updated)
+				if (autoProp.autoAdd && !frontmatter.hasOwnProperty(autoProp.key)) {
+					const newValue = AutoPropertyPlugin.getValue(autoProp, bodyContent);
+					if (newValue !== undefined && newValue !== null && newValue !== '') {
+						frontmatter[autoProp.key] = newValue;
+						propertiesChanged = propertiesChanged + 1;
+					}
+				}
+			});
 		})
 
 		// Display a message if changes were made & if the user wants to see them

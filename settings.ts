@@ -4,24 +4,27 @@ import AutoPropertyPlugin from "./main";
 export interface AutoPropertyPluginSettings {
     autopropertySettings: AutoPropRule[];
     mode: 'modify' | 'active-leaf-change' | 'manual';
-    showNotices: boolean
+    showNotices: boolean;
+    pathsToIgnore: string[];
 }
 
 export interface AutoPropRule {
     key: string;
     enabled: boolean;
-    rulePartOne: 'first' | 'all' | 'count';
+    rulePartOne: 'first' | 'all' | 'count';// | 'special';
     rulePartTwo: 'startsWith' | 'contains' | 'endsWith' | 'regex';
     ruleValue: string;
     modifierWhitespace: 'trim' | 'noTrim';
     modifierOmitSearch: 'none' | 'omit';
     modifierCaseSensitive: 'sensitive' | 'insensitive'
+    autoAdd: boolean;
 }
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
     autopropertySettings: [],
     mode: 'modify',
-    showNotices: true
+    showNotices: true,
+    pathsToIgnore: []
 }
 
 export class AutoPropertiesSettingsTab extends PluginSettingTab {
@@ -56,6 +59,12 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 });
             })
 
+        new Setting(containerEl).setName("Ignore paths").setDesc("Do not process auto-properties in these paths. Separate multiple paths with new lines.")
+            .addTextArea(text => text.setPlaceholder("e.g. resources/templates").setValue(this.plugin.settings.pathsToIgnore.join('\n')).onChange(async (value) => {
+                this.plugin.settings.pathsToIgnore = value.split('\n').map(path => path.trim());
+                await this.plugin.saveSettings();
+            }));
+
         let propertiesHeading = document.createElement("h2");
         propertiesHeading.innerText = "Auto-properties";
         propertiesHeading.addClass('my-head');
@@ -79,7 +88,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 ruleValue: '',
                 modifierWhitespace: 'trim',
                 modifierOmitSearch: 'none',
-                modifierCaseSensitive: 'insensitive'
+                modifierCaseSensitive: 'insensitive',
+                autoAdd: false
             });
             await this.plugin.saveSettings();
             this.display(); // Refresh the settings tab to show the new property
@@ -96,7 +106,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
             ruleValue: autoProp.ruleValue,
             modifierWhitespace: autoProp.modifierWhitespace,
             modifierOmitSearch: autoProp.modifierOmitSearch,
-            modifierCaseSensitive: autoProp.modifierCaseSensitive
+            modifierCaseSensitive: autoProp.modifierCaseSensitive,
+            autoAdd: autoProp.autoAdd
         }
         const panel = document.createElement("div");
         panel.addClass('property-panel');
@@ -143,8 +154,11 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 dropdown.addOption("first", "Pull the first line");
                 dropdown.addOption("all", "Pull all lines");
                 dropdown.addOption("count", "Count the lines");
+                /* Think about how you might implement special rules in the future, e.g. timestamp, character count, etc */
+                /* In an ideal world, this would allow users to do all the things base formulas can do, but that's a lot */
+                // dropdown.addOption("special", "SPECIAL RULE");
                 dropdown.setValue(wipAutoProp.rulePartOne).onChange((value) => {
-                    wipAutoProp.rulePartOne = value as 'first' | 'all' | 'count';
+                    wipAutoProp.rulePartOne = value as 'first' | 'all' | 'count';// | 'special';
                     updateSaveButtonStatus();
                 })
             })
@@ -167,9 +181,10 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
             }))
 
 
-        const modifiersSetting = new Setting(container).setName("Modifiers")
+        const modifiersSetting = new Setting(container).setName("Modifiers").setClass('modifier-container')
 
         const modifierContainer = document.createElement("div");
+        
         modifiersSetting.controlEl.appendChild(modifierContainer)
 
         new Setting(modifierContainer).setName("Ignore whitespace")
@@ -202,6 +217,14 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                     } else {
                         wipAutoProp.modifierCaseSensitive = 'insensitive';
                     }
+                });
+            })
+
+        new Setting(container).setName("Auto-add property to note")
+            .setDesc("Automatically add this property to notes when the rule matches")
+            .addToggle(toggle => {
+                toggle.setValue(wipAutoProp.autoAdd).onChange((value) => {
+                    wipAutoProp.autoAdd = value;
                 });
             })
 
@@ -264,6 +287,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 first: "Pull the first line",
                 all: "Pull all lines",
                 count: "Count the lines"
+                // special: "SPECIAL RULE"
             };
 
             const rulePartTwoText = {
@@ -273,7 +297,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
                 regex: "matching regex"
             };
 
-            let text = `${rulePartOneText[prop.rulePartOne]} ${rulePartTwoText[prop.rulePartTwo]} "${prop.ruleValue}"`;
+            let text = `${rulePartOneText[prop.rulePartOne]} ${rulePartTwoText[prop.rulePartTwo]} "${prop.ruleValue}"${prop.autoAdd ? " (➕ auto-add enabled)" : ""}`;
             if (!prop.enabled) text = "- auto-property not enabled";
             return text;
         }

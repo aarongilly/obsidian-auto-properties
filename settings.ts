@@ -44,7 +44,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Rule trigger')
 			.setDesc(
-				"On file modification, when navigating away, or manual-only via the 'Auto-properties: update auto-properties' command"
+				"On file modification, when navigating away, or manual-only via the 'auto-properties: update values' command"
 			)
 			.addDropdown(dropdown => {
 				dropdown.addOption('modify', 'On file modification')
@@ -205,8 +205,9 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			dropdown.addOption('characterCount', 'Character count of the note body')
 			dropdown.setValue(wipAutoProp.rule)
 			dropdown.onChange(value => {
-				lineRulesContainer.style.display =
-					value === 'built' ? 'block' : 'none'
+				lineRulesContainer.setCssStyles({
+					display: value === 'built' ? 'block' : 'none'
+				})
 				wipAutoProp.rule = value as
 					| 'built'
 					| 'created'
@@ -217,7 +218,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		})
 
         if(wipAutoProp.rule !== 'built'){
-            lineRulesContainer.style.display = 'none'
+			lineRulesContainer.setCssStyles({ display: 'none' })
         }
 		container.appendChild(lineRulesContainer)
 
@@ -338,8 +339,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				return
 			}
 			if (!wipAutoProp.ruleValue.trim() && wipAutoProp.rule === 'built') {
-                console.log(wipAutoProp)
-				new Notice('Built rules search string must not be blank')
+                new Notice('Built rules search string must not be blank')
 				return
 			}
 			Object.assign(autoProp, wipAutoProp)
@@ -387,7 +387,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 			let text = `${rulePartOneText[prop.rulePartOne]} ${
 				rulePartTwoText[prop.rulePartTwo]
-			}`
+			} "${prop.ruleValue}"`
 
 			if (prop.rule === 'created') text = 'File creation date'
 			if (prop.rule === 'modified') text = 'File modification date'   

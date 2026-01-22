@@ -35,7 +35,7 @@ This plugin updates frontmatter of your notes using rules that act on their body
 ### Rule Criteria
 
 - **Key** - the property name the rule will be applied to in your notes
-- **Rule** - end up being readable sentences that say what the rule does:
+- **Custom Rule** - end up being readable sentences that say what the rule does:
 
 | Rule Part 1                                                | Rule Part 2                                                          | Rule Part 3                         |
 | ---------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------- |
@@ -45,17 +45,21 @@ This plugin updates frontmatter of your notes using rules that act on their body
 	- *Ignore whitespace* - whether or not "starts with" should care about indention
 	- *Omit search string from result text* - allows you to not include whatever text you are using in the text input field of the rule
 	- *Case sensitive* - whether or not "THIS" is the same as "tHiS"
+- **Pre-built Rules** - there are a few other types of rules you can use that are self-explanatory
+  - Creation date
+  - Modification date
+  - Character count
 - **Enabled** - you can toggle rules on/off without deleting them
 
 ## Trigger Modes
 
 ### On Update
 
-After a brief pause in typing, auto-properties will update (if changess are needed)
+After a brief pause in typing, auto-properties will update (if changess are needed). This makes **undo** mildly tedious to use, however. It's not my preferred method. 
 
 ### On File Focus Change
 
-When switching between tabs, the tab you just left will be processed to have its proerties updated.
+When switching between or closing tabs, the note from the tab you just left will be processed and its proerties updated. This is how I use it, personally. 
 
 ### Manually
 

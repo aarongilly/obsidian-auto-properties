@@ -27,7 +27,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'update-all',
-			name: 'Update auto-properties for every file in the vault',
+			name: 'Update values for every file in the vault',
 			callback: () => {
 				this.updateAllNotes()
 			}
@@ -36,7 +36,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
 			id: 'update-current',
-			name: 'Update auto-properties',
+			name: 'Update values',
 			checkCallback: (checking: boolean) => {
 				// Conditions to check
 				const markdownView =
@@ -46,7 +46,7 @@ export default class AutoPropertyPlugin extends Plugin {
 					// If checking is false, then we want to actually perform the operation.
 					if (!checking) {
 						if (markdownView.file === null) return
-						this.applyAllRulesToFile(markdownView.file)
+						void this.applyAllRulesToFile(markdownView.file)
 					}
 
 					// This command will only show up in Command Palette when the check function returns true
@@ -100,7 +100,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on(
 				'active-leaf-change',
-				async (leaf: WorkspaceLeaf | null) => {
+				(leaf: WorkspaceLeaf | null) => {
 					const previousFile = this.lastActiveFile
 					const currentFile = this.getFileFromLeaf(leaf)
 					this.lastActiveFile = currentFile
@@ -176,7 +176,6 @@ export default class AutoPropertyPlugin extends Plugin {
 		})
 		if (inIgnoredPath) return
 
-			console.log(file)
 		if (!content) content = await this.app.vault.read(file)
 		const bodyContent =
 			AutoPropertyPlugin.extractBodyLines(content).join('\n')
@@ -220,7 +219,7 @@ export default class AutoPropertyPlugin extends Plugin {
 				// Skip if the property already exists in the frontmatter (would already have been checked & updated)
 				if (
 					autoProp.autoAdd &&
-					!frontmatter.hasOwnProperty(autoProp.key)
+					!keys.includes(autoProp.key)
 				) {
 					const newValue = AutoPropertyPlugin.getValue(
 						autoProp,

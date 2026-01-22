@@ -8,10 +8,15 @@
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": ["obsidian", "property", "formulas", "plugin"],
+	"keywords": [
+		"obsidian",
+		"property",
+		"formulas",
+		"plugin"
+	],
 	"author": "",
 	"license": "MIT",
-    "fundingUrl": "https://www.buymeacoffee.com/aarongilly",
+	"fundingUrl": "https://www.buymeacoffee.com/aarongilly",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",

@@ -148,7 +148,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		const header = document.createElement('h3')
 		header.addClasses(['key-header', 'clickable'])
-		header.setCssProps({ 'margin-bottom': '0px' })
+		header.addClass('mb-0')
 		header.innerText = `${autoProp.key || '(no key set)'}`
 		panel.appendChild(header)
 
@@ -163,15 +163,15 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		const container = document.createElement('div')
 		panel.appendChild(container)
 		if (header.innerText !== '(no key set)')
-			container.setCssProps({ display: 'none' })
+			container.addClass('hide')
 
 		function toggleContainer () {
-			if (container.style.display === 'none') {
-				container.setCssProps({ display: 'block' })
-				summary.setCssProps({ display: 'none' })
+			if (container.hasClass('hide')) {
+				container.removeClass('hide')
+				summary.addClass('hide')
 			} else {
-				container.setCssProps({ display: 'none' })
-				summary.setCssProps({ display: 'inline-block' })
+				container.addClass('hide')
+				summary.removeClass('hide')
 			}
 		}
 		header.onclick = toggleContainer
@@ -205,9 +205,11 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			dropdown.addOption('characterCount', 'Character count of the note body')
 			dropdown.setValue(wipAutoProp.rule)
 			dropdown.onChange(value => {
-				lineRulesContainer.setCssStyles({
-					display: value === 'built' ? 'block' : 'none'
-				})
+				if (value === 'built') {
+					lineRulesContainer.removeClass('hide')
+				} else {
+					lineRulesContainer.addClass('hide')
+				}
 				wipAutoProp.rule = value as
 					| 'built'
 					| 'created'
@@ -217,8 +219,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			})
 		})
 
-        if(wipAutoProp.rule !== 'built'){
-			lineRulesContainer.setCssStyles({ display: 'none' })
+        if (wipAutoProp.rule !== 'built') {
+			lineRulesContainer.addClass('hide')
         }
 		container.appendChild(lineRulesContainer)
 

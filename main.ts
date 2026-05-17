@@ -252,27 +252,6 @@ export default class AutoPropertyPlugin extends Plugin {
 		}
 	}
 
-	// async applyAllRulesToFileDANGEROUSLINKVERSION(file: TFile) {
-	// Thought here is to enable a "Create link" modifier to make the properties
-	// functional links to the blocks they represent. This way you can, in effect,
-	// update the property by clicking on it, then changing the source in the note.
-	// However - this also opens up the Pandora's Box of **modifying note content**.
-	// This would be a valuable thing to be able to do - but would require more work
-	// to do safely than I have time for right now.
-
-	// This would have to **replace** the "getValue" approach.
-	// You would NOT want to do modify the frontmatter several times in a row
-	// as part of a loop, but all at once - alongside a full body replacement to
-	// include link target blockIds
-
-	// You'd need to:
-	//  - modify the body of the note to include a ^blockID for each match
-	//  - modify all the frontmatter to include the text `[[#^blockId|{}]]`
-	//  - make **all** those changes **at once**
-	//  - be 100% sure you don't have a bug that deletes content!!!
-	//  - stop any infinite modification loops from happening
-	// }
-
 	//#region --- Static Helper Methods ---
 
 	static extractBodyLines (fileRawText: string): string[] {

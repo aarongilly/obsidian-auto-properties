@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"test": "jest"
 	},
 	"keywords": [
 		"obsidian",
@@ -18,13 +19,16 @@
 	"license": "MIT",
 	"fundingUrl": "https://www.buymeacoffee.com/aarongilly",
 	"devDependencies": {
+		"@types/jest": "^30.0.0",
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",
 		"builtin-modules": "3.3.0",
 		"esbuild": "0.17.3",
+		"jest": "^30.4.2",
 		"obsidian": "latest",
+		"ts-jest": "^29.4.10",
 		"tslib": "2.4.0",
-		"typescript": "4.7.4"
+		"typescript": "^5.9.3"
 	}
 }

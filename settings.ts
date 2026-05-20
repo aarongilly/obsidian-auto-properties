@@ -1,73 +1,72 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian'
-import AutoPropertyPlugin from './main'
+
+// ── Avoid circular import from main.ts ───────────────────────────────────────
+
+interface IAutoPropertyPlugin {
+	settings: AutoPropertyPluginSettings
+	saveSettings(): Promise<void>
+}
+
+// ── Primitive types ───────────────────────────────────────────────────────────
+
+export type RuleType     = 'lines' | 'between' | 'headings' | 'callouts' | 'file'
+export type Trigger      = 'modification' | 'focus_change' | 'open'
+export type Pull         = 'first' | 'all' | 'count' | 'text'
+export type LineMatch    = 'starting_with' | 'ending_with' | 'containing' | 'regex'
+export type HeadingMatch = 'text' | 'level'
+export type FilePull     = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension'
+export type CalloutExtract = 'header' | 'body' | 'both'
+
+// ── Plugin settings ───────────────────────────────────────────────────────────
 
 export interface AutoPropertyPluginSettings {
 	rules: AutoPropertyRule[]
 	showNotices: boolean
 }
 
-// ── Shared primitives ────────────────────────────────────────────────────────
+// ── Flat user-facing rule (all optional except key) ───────────────────────────
 
-export type Trigger = 'modification' | 'focus_change' | 'open'
-export type Pull = 'first' | 'all' | 'count'
-
-// ── Rule types ───────────────────────────────────────────────────────────────
-
-export type FilePull = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension'
-
-export interface FileRule {
-	pull: FilePull
+export interface AutoPropertyRule {
+	key: string
+	enabled?: boolean
+	autoadd?: boolean
+	no_overwrite?: boolean
+	trigger?: Trigger[]
+	whererun?: string[]
+	whereignore?: string[]
+	strip_markdown?: boolean
+	trim_whitespace?: boolean
+	case_sensitive?: boolean
+	format?: string
+	type?: RuleType
+	// lines
+	match?: LineMatch
+	value?: string
+	pull?: Pull
+	pull_next?: boolean
+	omit_match?: boolean
+	ignore_indentation?: boolean
+	// between
+	start?: string
+	end?: string
+	inclusive?: boolean
+	multiline?: boolean
+	// headings
+	heading_match?: HeadingMatch
+	heading_value?: string | number
+	include_heading_line?: boolean
+	include_subheadings?: boolean
+	// callouts
+	callout_type?: string
+	extract?: CalloutExtract
+	include_type_label?: boolean
+	// file
+	file_pull?: FilePull
 }
 
-export type LineMatch = 'starting_with' | 'ending_with' | 'containing' | 'regex'
+// ── Resolved rule (all required; produced by applyDefaults) ──────────────────
 
-export interface LinesRule {
-	pull: Pull
-	match: LineMatch
-	value: string
-	pull_next_line: boolean
-}
-
-export type HeadingPull = 'section' | 'text' | 'count'
-export type HeadingMatch = 'text' | 'level'
-
-export interface HeadingsRule {
-	pull: HeadingPull
-	match: HeadingMatch
-	value: string | number
-	include_heading_line: boolean
-	include_subheadings: boolean
-}
-
-export type CalloutExtract = 'header' | 'body' | 'both'
-
-export interface CalloutsRule {
-	pull: Pull
-	callout_type: string
-	extract: CalloutExtract
-	include_type_label: boolean
-}
-
-export interface BetweenRule {
-	pull: Pull
-	delimiter: string
-	end_delimiter: string   // if same as delimiter, user leaves blank; logic handles it
-	inclusive: boolean
-	multiline: boolean
-}
-
-// ── Discriminated union ──────────────────────────────────────────────────────
-
-export type RuleType =
-	| { type: 'file';     rule: FileRule }
-	| { type: 'lines';    rule: LinesRule }
-	| { type: 'between';  rule: BetweenRule }
-	| { type: 'headings'; rule: HeadingsRule }
-	| { type: 'callouts'; rule: CalloutsRule }
-
-// ── Top-level rule ───────────────────────────────────────────────────────────
-
-export type AutoPropertyRule = {
+export interface ResolvedRule {
 	key: string
 	enabled: boolean
 	autoadd: boolean
@@ -79,48 +78,156 @@ export type AutoPropertyRule = {
 	trim_whitespace: boolean
 	case_sensitive: boolean
 	format: string
-} & RuleType
-
-// ── Default rule factories ───────────────────────────────────────────────────
-
-function defaultRuleFor(type: AutoPropertyRule['type']): RuleType {
-	switch (type) {
-		case 'file':     return { type: 'file',     rule: { pull: 'name' } }
-		case 'lines':    return { type: 'lines',    rule: { pull: 'first', match: 'starting_with', value: '', pull_next_line: false } }
-		case 'between':  return { type: 'between',  rule: { pull: 'first', delimiter: '==', end_delimiter: '', inclusive: false, multiline: false } }
-		case 'headings': return { type: 'headings', rule: { pull: 'text', match: 'level', value: 1, include_heading_line: false, include_subheadings: true } }
-		case 'callouts': return { type: 'callouts', rule: { pull: 'first', callout_type: '', extract: 'body', include_type_label: false } }
-	}
+	type: RuleType
+	match: LineMatch
+	value: string
+	pull: Pull
+	pull_next: boolean
+	omit_match: boolean
+	ignore_indentation: boolean
+	start: string
+	end: string
+	inclusive: boolean
+	multiline: boolean
+	heading_match: HeadingMatch
+	heading_value: string | number
+	include_heading_line: boolean
+	include_subheadings: boolean
+	callout_type: string
+	extract: CalloutExtract
+	include_type_label: boolean
+	file_pull: FilePull
 }
 
-export const DEFAULT_RULE: AutoPropertyRule = {
-	key: '',
-	enabled: true,
-	autoadd: false,
-	no_overwrite: false,
-	trigger: [],
-	whererun: [],
-	whereignore: [],
-	strip_markdown: false,
-	trim_whitespace: true,
-	case_sensitive: false,
-	format: '',
-	type: 'lines',
-	rule: { pull: 'first', match: 'starting_with', value: '', pull_next_line: false }
+// ── Defaults ──────────────────────────────────────────────────────────────────
+
+export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
+	enabled:            true,
+	autoadd:            false,
+	no_overwrite:       false,
+	trigger:            [],
+	whererun:           [],
+	whereignore:        [],
+	strip_markdown:     false,
+	trim_whitespace:    false,
+	case_sensitive:     false,
+	format:             '',
+	type:               'lines',
+	match:              'starting_with',
+	value:              '',
+	pull:               'first',
+	pull_next:          false,
+	omit_match:         true,
+	ignore_indentation: false,
+	start:              '',
+	end:                '',
+	inclusive:          false,
+	multiline:          false,
+	heading_match:      'level',
+	heading_value:      1,
+	include_heading_line: false,
+	include_subheadings:  false,
+	callout_type:       '',
+	extract:            'body',
+	include_type_label: false,
+	file_pull:          'name',
 }
+
+const KNOWN_KEYS = new Set<string>(['key', ...Object.keys(RULE_DEFAULTS)])
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
 	rules: [],
-	showNotices: true
+	showNotices: true,
 }
 
-// ── Settings Tab ─────────────────────────────────────────────────────────────
+// ── Pure functions ────────────────────────────────────────────────────────────
+
+export function flattenRule(obj: unknown): Record<string, unknown> {
+	if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {}
+	const result: Record<string, unknown> = {}
+	const record = obj as Record<string, unknown>
+	for (const k of Object.keys(record)) {
+		const v = record[k]
+		if (v === undefined) continue
+		if (KNOWN_KEYS.has(k)) {
+			if (!(k in result)) result[k] = v
+		} else if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+			const nested = flattenRule(v)
+			for (const nk of Object.keys(nested)) {
+				if (!(nk in result)) result[nk] = nested[nk]
+			}
+		}
+	}
+	return result
+}
+
+export function applyDefaults(partial: Record<string, unknown>): ResolvedRule {
+	const defaults = RULE_DEFAULTS as unknown as Record<string, unknown>
+	const base: Record<string, unknown> = {}
+	for (const k of Object.keys(defaults)) {
+		const v = defaults[k]
+		base[k] = Array.isArray(v) ? [...v] : v
+	}
+	const flat = flattenRule(partial)
+	for (const k of Object.keys(flat)) {
+		if (flat[k] !== undefined) base[k] = flat[k]
+	}
+	base['key'] = base['key'] !== undefined ? String(base['key']) : ''
+	return base as unknown as ResolvedRule
+}
+
+export function stripDefaults(rule: ResolvedRule): AutoPropertyRule {
+	const result: Record<string, unknown> = { key: rule.key }
+	const defaults = RULE_DEFAULTS as unknown as Record<string, unknown>
+	const ruleRecord = rule as unknown as Record<string, unknown>
+	for (const k of Object.keys(defaults)) {
+		const v = ruleRecord[k]
+		const d = defaults[k]
+		if (Array.isArray(v) && Array.isArray(d)) {
+			if (v.length !== d.length || !v.every((item, i) => item === (d as unknown[])[i])) {
+				result[k] = v
+			}
+		} else if (v !== d) {
+			result[k] = v
+		}
+	}
+	return result as unknown as AutoPropertyRule
+}
+
+// ── Type-specific field names (for type-switching cache in GUI) ───────────────
+
+const TYPE_FIELDS: Record<RuleType, (keyof ResolvedRule)[]> = {
+	lines:    ['pull', 'match', 'value', 'pull_next', 'omit_match', 'ignore_indentation'],
+	between:  ['pull', 'start', 'end', 'inclusive', 'multiline'],
+	headings: ['pull', 'heading_match', 'heading_value', 'include_heading_line', 'include_subheadings'],
+	callouts: ['pull', 'callout_type', 'extract', 'include_type_label'],
+	file:     ['file_pull'],
+}
+
+function extractTypeFields(wip: ResolvedRule): Partial<ResolvedRule> {
+	const out: Record<string, unknown> = {}
+	for (const f of TYPE_FIELDS[wip.type]) {
+		out[f] = (wip as unknown as Record<string, unknown>)[f]
+	}
+	return out as Partial<ResolvedRule>
+}
+
+function applyTypeDefaults(type: RuleType): Partial<ResolvedRule> {
+	const defaults = RULE_DEFAULTS as unknown as Record<string, unknown>
+	const out: Record<string, unknown> = {}
+	for (const k of TYPE_FIELDS[type]) {
+		out[k] = defaults[k]
+	}
+	return out as Partial<ResolvedRule>
+}
+
+// ── Settings Tab ──────────────────────────────────────────────────────────────
 
 export class AutoPropertiesSettingsTab extends PluginSettingTab {
-	plugin: AutoPropertyPlugin
+	plugin: IAutoPropertyPlugin
 
-	constructor(app: App, plugin: AutoPropertyPlugin) {
-		super(app, plugin)
+	constructor(app: App, plugin: IAutoPropertyPlugin) {
+		super(app, plugin as any)
 		this.plugin = plugin
 	}
 
@@ -151,20 +258,100 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		addButton.setText('Add auto-property')
 		addButton.addClass('my-button')
 		addButton.onclick = async () => {
-			this.plugin.settings.rules.push({ ...DEFAULT_RULE })
+			this.plugin.settings.rules.push({ key: '' })
 			await this.plugin.saveSettings()
 			this.display()
 		}
 		containerEl.appendChild(addButton)
+
+		// ── Import / Export ──────────────────────────────────────────────────
+
+		new Setting(containerEl).setName('Import / Export').setHeading()
+
+		// Export
+		new Setting(containerEl)
+			.setName('Export rules')
+			.setDesc('Copies all current rules as JSON to your clipboard, and shows the JSON below for manual copying if the clipboard is unavailable.')
+			.addButton(btn => {
+				btn.setButtonText('Export to clipboard')
+				btn.onClick(() => {
+					const json = JSON.stringify(this.plugin.settings.rules, null, 2)
+					exportTextarea.value = json
+					exportTextarea.style.display = 'block'
+					navigator.clipboard.writeText(json).then(() => {
+						new Notice('Rules copied to clipboard.')
+					}).catch(() => {
+						new Notice('Clipboard unavailable — copy the JSON below.')
+					})
+				})
+			})
+
+		const exportTextarea = document.createElement('textarea')
+		exportTextarea.readOnly = true
+		exportTextarea.style.display = 'none'
+		exportTextarea.style.width = '100%'
+		exportTextarea.style.minHeight = '160px'
+		exportTextarea.style.fontFamily = 'monospace'
+		exportTextarea.style.fontSize = 'var(--font-smallest)'
+		exportTextarea.style.marginBottom = '16px'
+		containerEl.appendChild(exportTextarea)
+
+		// Import
+		new Setting(containerEl)
+			.setName('Import rules')
+			.setDesc('Paste exported JSON below. "Append" adds rules to the end of your existing list. "Replace all" discards current rules and loads the imported ones.')
+
+		const importTextarea = document.createElement('textarea')
+		importTextarea.style.width = '100%'
+		importTextarea.style.minHeight = '160px'
+		importTextarea.style.fontFamily = 'monospace'
+		importTextarea.style.fontSize = 'var(--font-smallest)'
+		importTextarea.style.marginBottom = '8px'
+		importTextarea.placeholder = 'Paste exported JSON here…'
+		containerEl.appendChild(importTextarea)
+
+		const importButtons = document.createElement('div')
+		importButtons.style.display = 'flex'
+		importButtons.style.gap = '8px'
+		containerEl.appendChild(importButtons)
+
+		const appendBtn = document.createElement('button')
+		appendBtn.setText('Append to existing')
+		appendBtn.onclick = async () => {
+			const rules = parseRulesJson(importTextarea.value)
+			if (!rules) {
+				new Notice('Invalid JSON — must be an array of rule objects, each with a "key" field.')
+				return
+			}
+			this.plugin.settings.rules.push(...rules)
+			await this.plugin.saveSettings()
+			this.display()
+			new Notice(`Appended ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}.`)
+		}
+		importButtons.appendChild(appendBtn)
+
+		const replaceBtn = document.createElement('button')
+		replaceBtn.setText('Replace all rules')
+		replaceBtn.addClasses(['mod-warning'])
+		replaceBtn.onclick = async () => {
+			const rules = parseRulesJson(importTextarea.value)
+			if (!rules) {
+				new Notice('Invalid JSON — must be an array of rule objects, each with a "key" field.')
+				return
+			}
+			this.plugin.settings.rules = rules
+			await this.plugin.saveSettings()
+			this.display()
+			new Notice(`Replaced all rules with ${rules.length} imported ${rules.length === 1 ? 'rule' : 'rules'}.`)
+		}
+		importButtons.appendChild(replaceBtn)
 	}
 
 	createAutoPropertyPanel(autoProp: AutoPropertyRule, index: number): HTMLElement {
-		// Deep clone so edits don't touch live settings until Save
-		let wip: AutoPropertyRule = JSON.parse(JSON.stringify(autoProp))
+		let wip: ResolvedRule = applyDefaults(autoProp as unknown as Record<string, unknown>)
 
-		// Per-type rule cache: preserves rule data when user switches types without saving
-		const ruleCache: Partial<Record<AutoPropertyRule['type'], RuleType['rule']>> = {
-			[autoProp.type]: autoProp.rule as RuleType['rule']
+		const typeCache: Partial<Record<RuleType, Partial<ResolvedRule>>> = {
+			[wip.type]: extractTypeFields(wip),
 		}
 
 		// ── Panel shell ──────────────────────────────────────────────────────
@@ -172,23 +359,20 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		const panel = document.createElement('div')
 		panel.addClass('property-panel')
 
-		// Header: key name, clickable to expand/collapse
 		const header = document.createElement('h3')
 		header.addClasses(['key-header', 'clickable', 'mb-0'])
 		header.innerText = autoProp.key ? autoProp.key : '✦ New auto-property'
 		panel.appendChild(header)
 
 		const summary = document.createElement('span')
-		summary.innerText = autoProp.key ? makeSummaryText(autoProp) : '— click to configure'
+		summary.innerText = autoProp.key ? makeSummaryText(wip) : '— click to configure'
 		summary.addClasses(['italic', 'clickable'])
 		panel.appendChild(summary)
 
-		// Collapsible container
 		const container = document.createElement('div')
 		panel.appendChild(container)
 		if (autoProp.key) container.addClass('hide')
 
-		// JSON/GUI mode toggle — lives inside container so it's hidden when collapsed
 		let jsonMode = false
 		const modeToggleRow = document.createElement('div')
 		modeToggleRow.style.display = 'flex'
@@ -213,15 +397,11 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		header.onclick = toggleContainer
 		summary.onclick = toggleContainer
 
-		// ── Two views inside container ───────────────────────────────────────
-
 		const guiView  = document.createElement('div')
 		const jsonView = document.createElement('div')
 		container.appendChild(guiView)
 		container.appendChild(jsonView)
 		jsonView.addClass('hide')
-
-		// ── Save / Delete buttons (shared between modes) ─────────────────────
 
 		const buttonContainer = document.createElement('div')
 		buttonContainer.addClass('button-container')
@@ -230,20 +410,18 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		saveButton.setText('Save')
 		saveButton.onclick = async () => {
 			if (jsonMode) {
-				// Parse JSON → wip, then validate
 				const parsed = tryParseRuleJson(jsonEditor.value)
 				if (!parsed) {
 					new Notice('Invalid JSON — please fix before saving.')
 					return
 				}
-				wip = parsed
+				wip = applyDefaults(parsed as unknown as Record<string, unknown>)
 			}
 			if (!wip.key.trim()) {
 				new Notice('Key cannot be blank.')
 				return
 			}
-			Object.assign(autoProp, wip)
-			this.plugin.settings.rules[index] = wip
+			this.plugin.settings.rules[index] = stripDefaults(wip)
 			await this.plugin.saveSettings()
 			this.display()
 			new Notice('Auto-property saved.')
@@ -260,10 +438,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		}
 		buttonContainer.appendChild(deleteButton)
 
-		// Mark save button dirty on any wip change
 		function markDirty() { saveButton.addClass('highlight') }
-
-		// ── JSON view ────────────────────────────────────────────────────────
 
 		const jsonEditor = document.createElement('textarea')
 		jsonEditor.style.width = '100%'
@@ -274,24 +449,20 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		jsonEditor.onchange = markDirty
 		jsonView.appendChild(jsonEditor)
 
-		// ── Mode toggle logic ────────────────────────────────────────────────
-
 		modeToggle.onclick = () => {
 			jsonMode = !jsonMode
 			if (jsonMode) {
-				// GUI → JSON: serialize current wip into the textarea
-				jsonEditor.value = JSON.stringify(wip, null, 2)
+				jsonEditor.value = JSON.stringify(stripDefaults(wip), null, 2)
 				guiView.addClass('hide')
 				jsonView.removeClass('hide')
 				modeToggle.setText('⚙ GUI')
 			} else {
-				// JSON → GUI: attempt to parse, warn if invalid
 				const parsed = tryParseRuleJson(jsonEditor.value)
 				if (!parsed) {
 					new Notice('Invalid JSON — fix it before switching back.')
 					return
 				}
-				wip = parsed
+				wip = applyDefaults(parsed as unknown as Record<string, unknown>)
 				guiView.removeClass('hide')
 				jsonView.addClass('hide')
 				modeToggle.setText('{ } JSON')
@@ -299,13 +470,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			}
 		}
 
-		// ── GUI view builder ─────────────────────────────────────────────────
-		// Extracted as a function so it can be called after JSON→GUI switch
-
 		const rebuildGuiView = () => {
 			guiView.empty()
-
-			// ── Common fields ────────────────────────────────────────────────
 
 			new Setting(guiView)
 				.setName('Property key')
@@ -334,28 +500,19 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 					drop.addOption('file',     'File')
 					drop.setValue(wip.type)
 					drop.onChange(value => {
-						const newType = value as AutoPropertyRule['type']
-						ruleCache[wip.type] = wip.rule as RuleType['rule']
-						const cached = ruleCache[newType]
-						if (cached) {
-							;(wip as any) = { ...wip, type: newType, rule: cached }
-						} else {
-							const defaults = defaultRuleFor(newType)
-							;(wip as any) = { ...wip, ...defaults }
-						}
+						const newType = value as RuleType
+						typeCache[wip.type] = extractTypeFields(wip)
+						const cached = typeCache[newType]
+						wip = { ...wip, ...applyTypeDefaults(newType), ...cached, type: newType }
 						markDirty()
 						rebuildGuiView()
 					})
 				})
 
-			// ── Type-specific fields ─────────────────────────────────────────
-
 			const ruleSection = document.createElement('div')
 			ruleSection.addClass('rules-container')
 			guiView.appendChild(ruleSection)
-			buildRuleFields(ruleSection, wip, markDirty)
-
-			// ── Output ───────────────────────────────────────────────────────
+			buildTypeFields(ruleSection, wip, markDirty)
 
 			new Setting(guiView).setName('Output').setHeading()
 
@@ -384,8 +541,6 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 					t.inputEl.rows = 3
 				})
 
-			// ── Behaviour ────────────────────────────────────────────────────
-
 			new Setting(guiView).setName('Behaviour').setHeading()
 
 			new Setting(guiView)
@@ -402,8 +557,6 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				.setName('Case sensitive')
 				.setDesc('When enabled, matching is case-sensitive — "TODO" will not match "todo". When disabled, case is ignored and both would match.')
 				.addToggle(t => t.setValue(wip.case_sensitive).onChange(v => { wip.case_sensitive = v; markDirty() }))
-
-			// ── Triggers ─────────────────────────────────────────────────────
 
 			new Setting(guiView).setName('Triggers').setHeading()
 
@@ -437,15 +590,13 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 					)
 			})
 
-			// ── Where to run ─────────────────────────────────────────────────
-
 			new Setting(guiView).setName('Scope').setHeading()
 
 			new Setting(guiView)
 				.setName('Run in folders')
 				.setDesc('Only run in these folders (and subfolders). Leave blank for entire vault.')
 				.addTextArea(t =>
-					t.setValue(wip.whererun.join('\n')).setPlaceholder('e.g. /projects').onChange(v => {
+					t.setValue(wip.whererun.join('\n')).setPlaceholder('e.g. projects').onChange(v => {
 						wip.whererun = v.split('\n').map(s => s.trim()).filter(Boolean)
 						markDirty()
 					})
@@ -455,7 +606,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				.setName('Ignore folders')
 				.setDesc('Never run in these folders (and subfolders).')
 				.addTextArea(t =>
-					t.setValue(wip.whereignore.join('\n')).setPlaceholder('e.g. /templates').onChange(v => {
+					t.setValue(wip.whereignore.join('\n')).setPlaceholder('e.g. assets/templates').onChange(v => {
 						wip.whereignore = v.split('\n').map(s => s.trim()).filter(Boolean)
 						markDirty()
 					})
@@ -464,26 +615,24 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			guiView.appendChild(buttonContainer)
 		}
 
-		// Initial render
 		rebuildGuiView()
-
 		return panel
 	}
 }
 
-// ── Type-specific rule field builders ────────────────────────────────────────
+// ── Type-specific field builders ──────────────────────────────────────────────
 
-function buildRuleFields(container: HTMLElement, wip: AutoPropertyRule, markDirty: () => void): void {
+function buildTypeFields(container: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	switch (wip.type) {
-		case 'file':     buildFileFields(container, wip.rule, markDirty);     break
-		case 'lines':    buildLinesFields(container, wip.rule, markDirty);    break
-		case 'between':  buildBetweenFields(container, wip.rule, markDirty);  break
-		case 'headings': buildHeadingsFields(container, wip.rule, markDirty); break
-		case 'callouts': buildCalloutsFields(container, wip.rule, markDirty); break
+		case 'file':     buildFileFields(container, wip, markDirty);     break
+		case 'lines':    buildLinesFields(container, wip, markDirty);    break
+		case 'between':  buildBetweenFields(container, wip, markDirty);  break
+		case 'headings': buildHeadingsFields(container, wip, markDirty); break
+		case 'callouts': buildCalloutsFields(container, wip, markDirty); break
 	}
 }
 
-function buildFileFields(el: HTMLElement, rule: FileRule, markDirty: () => void): void {
+function buildFileFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	new Setting(el)
 		.setName('Pull')
 		.setDesc('Which piece of file metadata to use as the property value.')
@@ -497,12 +646,12 @@ function buildFileFields(el: HTMLElement, rule: FileRule, markDirty: () => void)
 				modified:  'Modified date',
 				size:      'File size (bytes)',
 			}
-			Object.entries(options).forEach(([v, l]) => d.addOption(v, l))
-			d.setValue(rule.pull).onChange(v => { rule.pull = v as FilePull; markDirty() })
+			Object.keys(options).forEach(v => d.addOption(v, (options as Record<string, string>)[v]))
+			d.setValue(wip.file_pull).onChange(v => { wip.file_pull = v as FilePull; markDirty() })
 		})
 }
 
-function buildLinesFields(el: HTMLElement, rule: LinesRule, markDirty: () => void): void {
+function buildLinesFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	new Setting(el)
 		.setName('Pull')
 		.setDesc('"First" returns only the first matched line. "All" returns every matched line as a list. "Count" returns the number of matched lines as a number.')
@@ -510,7 +659,7 @@ function buildLinesFields(el: HTMLElement, rule: LinesRule, markDirty: () => voi
 			d.addOption('first', 'First matching line')
 			d.addOption('all',   'All matching lines')
 			d.addOption('count', 'Count of matching lines')
-			d.setValue(rule.pull).onChange(v => { rule.pull = v as Pull; markDirty() })
+			d.setValue(wip.pull).onChange(v => { wip.pull = v as Pull; markDirty() })
 		})
 
 	new Setting(el)
@@ -521,22 +670,27 @@ function buildLinesFields(el: HTMLElement, rule: LinesRule, markDirty: () => voi
 			d.addOption('ending_with',   'Ending with')
 			d.addOption('containing',    'Containing')
 			d.addOption('regex',         'Matching regex')
-			d.setValue(rule.match).onChange(v => { rule.match = v as LineMatch; markDirty() })
+			d.setValue(wip.match).onChange(v => { wip.match = v as LineMatch; markDirty() })
 		})
 		.addText(t =>
-			t.setValue(rule.value).setPlaceholder('Search string').onChange(v => {
-				rule.value = v
+			t.setValue(wip.value).setPlaceholder('Search string').onChange(v => {
+				wip.value = v
 				markDirty()
 			})
 		)
 
 	new Setting(el)
+		.setName('Include search string')
+		.setDesc('When enabled, the search string itself is included in the extracted value. When disabled (default), the search string is stripped from the result — useful when matching syntax like "- [ ]" to return only the task text.')
+		.addToggle(t => t.setValue(!wip.omit_match).onChange(v => { wip.omit_match = !v; markDirty() }))
+
+	new Setting(el)
 		.setName('Pull next line')
 		.setDesc('Instead of returning the matched line itself, return the line immediately after it. Useful when your note uses label lines like "Status:" followed by the actual value on the next line.')
-		.addToggle(t => t.setValue(rule.pull_next_line).onChange(v => { rule.pull_next_line = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.pull_next).onChange(v => { wip.pull_next = v; markDirty() }))
 }
 
-function buildBetweenFields(el: HTMLElement, rule: BetweenRule, markDirty: () => void): void {
+function buildBetweenFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	new Setting(el)
 		.setName('Pull')
 		.setDesc('"First" returns the first match only. "All" returns every match as a list. "Count" returns the total number of matches as a number.')
@@ -544,15 +698,15 @@ function buildBetweenFields(el: HTMLElement, rule: BetweenRule, markDirty: () =>
 			d.addOption('first', 'First match')
 			d.addOption('all',   'All matches')
 			d.addOption('count', 'Count of matches')
-			d.setValue(rule.pull).onChange(v => { rule.pull = v as Pull; markDirty() })
+			d.setValue(wip.pull).onChange(v => { wip.pull = v as Pull; markDirty() })
 		})
 
 	new Setting(el)
 		.setName('Start delimiter')
 		.setDesc('The string that marks the beginning of the text to extract. For Obsidian highlights, use ==. For bold, use **.')
 		.addText(t =>
-			t.setValue(rule.delimiter).setPlaceholder('e.g. ==').onChange(v => {
-				rule.delimiter = v
+			t.setValue(wip.start).setPlaceholder('e.g. ==').onChange(v => {
+				wip.start = v
 				markDirty()
 			})
 		)
@@ -561,8 +715,8 @@ function buildBetweenFields(el: HTMLElement, rule: BetweenRule, markDirty: () =>
 		.setName('End delimiter')
 		.setDesc('The string that marks the end of the text to extract. Leave blank to reuse the start delimiter — which is correct for symmetric delimiters like == or **.')
 		.addText(t =>
-			t.setValue(rule.end_delimiter).setPlaceholder('Same as start').onChange(v => {
-				rule.end_delimiter = v
+			t.setValue(wip.end).setPlaceholder('Same as start').onChange(v => {
+				wip.end = v
 				markDirty()
 			})
 		)
@@ -570,23 +724,23 @@ function buildBetweenFields(el: HTMLElement, rule: BetweenRule, markDirty: () =>
 	new Setting(el)
 		.setName('Inclusive')
 		.setDesc('When enabled, the delimiter characters themselves are included in the result. For example, extracting ==highlight== inclusively gives "==highlight==" rather than "highlight".')
-		.addToggle(t => t.setValue(rule.inclusive).onChange(v => { rule.inclusive = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.inclusive).onChange(v => { wip.inclusive = v; markDirty() }))
 
 	new Setting(el)
 		.setName('Multiline')
 		.setDesc('When enabled, the rule can match text that spans across multiple lines. When disabled, the start and end delimiter must appear on the same line.')
-		.addToggle(t => t.setValue(rule.multiline).onChange(v => { rule.multiline = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.multiline).onChange(v => { wip.multiline = v; markDirty() }))
 }
 
-function buildHeadingsFields(el: HTMLElement, rule: HeadingsRule, markDirty: () => void): void {
+function buildHeadingsFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	new Setting(el)
 		.setName('Pull')
-		.setDesc('"Heading text" returns just the heading line\'s text. "Full section" returns the heading and all content beneath it until the next same-or-higher-level heading. "Count" returns the number of matching headings.')
+		.setDesc('"Heading text" returns just the heading line\'s text. "Full section" returns the heading and all content beneath it. "Count" returns the number of matching headings.')
 		.addDropdown(d => {
-			d.addOption('text',    'Heading text only')
-			d.addOption('section', 'Full section content')
-			d.addOption('count',   'Count of matching headings')
-			d.setValue(rule.pull).onChange(v => { rule.pull = v as HeadingPull; markDirty() })
+			d.addOption('text',  'Heading text only')
+			d.addOption('first', 'Full section content')
+			d.addOption('count', 'Count of matching headings')
+			d.setValue(wip.pull).onChange(v => { wip.pull = v as Pull; markDirty() })
 		})
 
 	new Setting(el)
@@ -595,11 +749,11 @@ function buildHeadingsFields(el: HTMLElement, rule: HeadingsRule, markDirty: () 
 		.addDropdown(d => {
 			d.addOption('level', 'Heading level (1–6)')
 			d.addOption('text',  'Heading text')
-			d.setValue(rule.match).onChange(v => { rule.match = v as HeadingMatch; markDirty() })
+			d.setValue(wip.heading_match).onChange(v => { wip.heading_match = v as HeadingMatch; markDirty() })
 		})
 		.addText(t =>
-			t.setValue(String(rule.value)).setPlaceholder(rule.match === 'level' ? '1–6' : 'Heading text').onChange(v => {
-				rule.value = rule.match === 'level' ? parseInt(v) || 1 : v
+			t.setValue(String(wip.heading_value)).setPlaceholder(wip.heading_match === 'level' ? '1–6' : 'Heading text').onChange(v => {
+				wip.heading_value = wip.heading_match === 'level' ? parseInt(v) || 1 : v
 				markDirty()
 			})
 		)
@@ -607,15 +761,15 @@ function buildHeadingsFields(el: HTMLElement, rule: HeadingsRule, markDirty: () 
 	new Setting(el)
 		.setName('Include heading line')
 		.setDesc('When pulling a full section, include the heading line itself at the top of the result. If disabled, only the content beneath the heading is returned.')
-		.addToggle(t => t.setValue(rule.include_heading_line).onChange(v => { rule.include_heading_line = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.include_heading_line).onChange(v => { wip.include_heading_line = v; markDirty() }))
 
 	new Setting(el)
 		.setName('Include subheadings')
 		.setDesc('When pulling a full section, include content under lower-level headings within that section. If disabled, only the text between the matched heading and the first sub-heading is returned.')
-		.addToggle(t => t.setValue(rule.include_subheadings).onChange(v => { rule.include_subheadings = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.include_subheadings).onChange(v => { wip.include_subheadings = v; markDirty() }))
 }
 
-function buildCalloutsFields(el: HTMLElement, rule: CalloutsRule, markDirty: () => void): void {
+function buildCalloutsFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	new Setting(el)
 		.setName('Pull')
 		.setDesc('"First" returns the first matching callout. "All" returns every matching callout as a list. "Count" returns the total number of matching callouts.')
@@ -623,15 +777,15 @@ function buildCalloutsFields(el: HTMLElement, rule: CalloutsRule, markDirty: () 
 			d.addOption('first', 'First matching callout')
 			d.addOption('all',   'All matching callouts')
 			d.addOption('count', 'Count of matching callouts')
-			d.setValue(rule.pull).onChange(v => { rule.pull = v as Pull; markDirty() })
+			d.setValue(wip.pull).onChange(v => { wip.pull = v as Pull; markDirty() })
 		})
 
 	new Setting(el)
 		.setName('Callout type filter')
 		.setDesc('Only match callouts of this type (e.g. "warning", "info", "tip"). Leave blank to match callouts of any type.')
 		.addText(t =>
-			t.setValue(rule.callout_type).setPlaceholder('Any type').onChange(v => {
-				rule.callout_type = v
+			t.setValue(wip.callout_type).setPlaceholder('Any type').onChange(v => {
+				wip.callout_type = v
 				markDirty()
 			})
 		)
@@ -643,36 +797,45 @@ function buildCalloutsFields(el: HTMLElement, rule: CalloutsRule, markDirty: () 
 			d.addOption('header', 'Header only')
 			d.addOption('body',   'Body only')
 			d.addOption('both',   'Header and body')
-			d.setValue(rule.extract).onChange(v => { rule.extract = v as CalloutExtract; markDirty() })
+			d.setValue(wip.extract).onChange(v => { wip.extract = v as CalloutExtract; markDirty() })
 		})
 
 	new Setting(el)
 		.setName('Include type label')
 		.setDesc('When enabled, the "> [!type]" prefix line is included in the result. When disabled, only the human-readable content is returned.')
-		.addToggle(t => t.setValue(rule.include_type_label).onChange(v => { rule.include_type_label = v; markDirty() }))
+		.addToggle(t => t.setValue(wip.include_type_label).onChange(v => { wip.include_type_label = v; markDirty() }))
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseRulesJson(raw: string): AutoPropertyRule[] | null {
+	try {
+		const parsed = JSON.parse(raw.trim())
+		if (!Array.isArray(parsed)) return null
+		if (!parsed.every(r => typeof r === 'object' && r !== null && typeof r.key === 'string')) return null
+		return parsed as AutoPropertyRule[]
+	} catch {
+		return null
+	}
+}
 
 function tryParseRuleJson(raw: string): AutoPropertyRule | null {
 	try {
 		const parsed = JSON.parse(raw)
-		// Minimal sanity checks — full validation can be added later
-		if (typeof parsed !== 'object' || !parsed.key || !parsed.type || !parsed.rule) return null
+		if (typeof parsed !== 'object' || !parsed.key) return null
 		return parsed as AutoPropertyRule
 	} catch {
 		return null
 	}
 }
 
-function makeSummaryText(rule: AutoPropertyRule): string {
+function makeSummaryText(rule: ResolvedRule): string {
 	if (!rule.enabled) return '— disabled'
-
 	switch (rule.type) {
-		case 'file':     return `File → ${rule.rule.pull}`
-		case 'lines':    return `Lines → ${rule.rule.pull} ${rule.rule.match} "${rule.rule.value}"`
-		case 'between':  return `Between → ${rule.rule.pull} between "${rule.rule.delimiter}"`
-		case 'headings': return `Headings → ${rule.rule.pull} (${rule.rule.match}: ${rule.rule.value})`
-		case 'callouts': return `Callouts → ${rule.rule.pull}${rule.rule.callout_type ? ` [!${rule.rule.callout_type}]` : ''} (${rule.rule.extract})`
+		case 'file':     return `File → ${rule.file_pull}`
+		case 'lines':    return `Lines → ${rule.pull} ${rule.match} "${rule.value}"`
+		case 'between':  return `Between → ${rule.pull} between "${rule.start}"`
+		case 'headings': return `Headings → ${rule.pull} (${rule.heading_match}: ${rule.heading_value})`
+		case 'callouts': return `Callouts → ${rule.pull}${rule.callout_type ? ` [!${rule.callout_type}]` : ''} (${rule.extract})`
 	}
 }

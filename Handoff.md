@@ -5,32 +5,158 @@ An Obsidian plugin that automatically updates note frontmatter properties based 
 user-defined rules. Rules watch note content and fire on configurable triggers.
 Currently pending review on the Obsidian community plugin registry.
 
-The codebase has two files of interest: `main.ts` and `settings.ts`.
-A rewrite from v1.1.1 → v2.0.0 is in progress. The new versions of both files
-are the ones in this repo — do not reference the v1 logic.
+Two files of interest: `main.ts` and `settings.ts`. A rewrite from v1.1.1 → v2.0.0
+is in progress. The files in this repo are the v2 versions — do not reference v1 logic.
+
+---
+
+## Rule schema
+
+### Core principle
+Rules are flat JSON objects. Every property is optional except `key`. Unrecognised
+properties are ignored. **Structure doesn't matter** — users may nest properties
+however they like; the parser flattens everything before use (see Parsing below).
+
+Only properties that differ from their defaults need to appear in the JSON. The GUI
+should also omit default-valued properties from JSON output.
+
+### Minimal valid rule
+```json
+{ "key": "my-property" }
+```
+
+### All available properties
+
+| Property | Type | Default | Applies to |
+|---|---|---|---|
+| `key` | string | — | **All** (required) |
+| `enabled` | boolean | `true` | All |
+| `autoadd` | boolean | `false` | All |
+| `no_overwrite` | boolean | `false` | All |
+| `trigger` | Trigger[] | `[]` | All |
+| `whererun` | string[] | `[]` | All |
+| `whereignore` | string[] | `[]` | All |
+| `type` | RuleType | `"lines"` | All |
+| `pull` | Pull | `"first"` | All content types |
+| `strip_markdown` | boolean | `false` | All |
+| `trim_whitespace` | boolean | `false` | All |
+| `format` | string | `""` | All |
+| `case_sensitive` | boolean | `false` | lines, between, headings |
+| `match` | MatchType | `"starting_with"` | lines |
+| `value` | string | `""` | lines |
+| `omit_match` | boolean | `false` | lines |
+| `ignore_indentation` | boolean | `false` | lines |
+| `pull_next` | boolean | `false` | lines |
+| `start` | string | `""` | between |
+| `end` | string | `""` (= start) | between |
+| `inclusive` | boolean | `false` | between |
+| `multiline` | boolean | `false` | between |
+| `heading_match` | HeadingMatch | `"level"` | headings |
+| `heading_value` | string\|number | `1` | headings |
+| `include_heading_line` | boolean | `false` | headings |
+| `include_subheadings` | boolean | `true` | headings |
+| `callout_type` | string | `""` (any) | callouts |
+| `extract` | CalloutExtract | `"body"` | callouts |
+| `include_type_label` | boolean | `false` | callouts |
+| `file_pull` | FilePull | `"name"` | file |
+
+### Type values
+```
+RuleType:      "lines" | "between" | "headings" | "callouts" | "file"
+Pull:          "first" | "all" | "count"
+MatchType:     "starting_with" | "ending_with" | "containing" | "regex"
+HeadingMatch:  "level" | "text"
+CalloutExtract:"header" | "body" | "both"
+FilePull:      "name" | "path" | "folder" | "extension" | "created" | "modified" | "size"
+Trigger:       "modification" | "focus_change" | "open"
+```
+
+### Example rules (only non-default values shown)
+
+**Pull all highlights:**
+```json
+{ "key": "highlights", "type": "between", "start": "==", "pull": "all" }
+```
+
+**First open task:**
+```json
+{ "key": "next-task", "value": "- [ ]", "omit_match": true, "trim_whitespace": true }
+```
+
+**File creation date:**
+```json
+{ "key": "created", "type": "file", "file_pull": "created", "no_overwrite": true }
+```
+
+**Link to a URL using a pulled value:**
+```json
+{ "key": "link", "value": "slug: ", "omit_match": true, "format": "https://example.com/${result}" }
+```
+
+**First H1 text:**
+```json
+{ "key": "title", "type": "headings", "pull": "text" }
+```
+
+**Summary section content:**
+```json
+{
+  "key": "summary",
+  "type": "headings",
+  "heading_match": "text",
+  "heading_value": "Summary",
+  "include_subheadings": false,
+  "strip_markdown": true,
+  "trim_whitespace": true
+}
+```
+
+**Users may also freely nest for their own organisation — all equivalent:**
+```json
+{
+  "key": "highlights",
+  "input": { "type": "between", "start": "==" },
+  "output": { "pull": "all" }
+}
+```
+
+---
+
+## Parsing: recursive key flattening
+
+The parser walks the rule object recursively, collecting known keys at any depth.
+Unknown keys that are objects are recursed into (enabling user-defined grouping).
+Unknown scalar keys are silently ignored.
+
+```typescript
+const KNOWN_KEYS = new Set([
+  'key', 'enabled', 'autoadd', 'no_overwrite', 'trigger', 'whererun', 'whereignore',
+  'type', 'pull', 'strip_markdown', 'trim_whitespace', 'format', 'case_sensitive',
+  'match', 'value', 'omit_match', 'ignore_indentation', 'pull_next',
+  'start', 'end', 'inclusive', 'multiline',
+  'heading_match', 'heading_value', 'include_heading_line', 'include_subheadings',
+  'callout_type', 'extract', 'include_type_label',
+  'file_pull'
+])
+
+function flattenRule(obj: unknown, collected: Record<string, unknown> = {}): Record<string, unknown> {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return collected
+  for (const [k, v] of Object.entries(obj)) {
+    if (KNOWN_KEYS.has(k)) {
+      collected[k] = v
+    } else if (typeof v === 'object' && !Array.isArray(v)) {
+      flattenRule(v, collected)
+    }
+  }
+  return collected
+}
+```
+
+After flattening, apply defaults for any missing keys before use.
 
 ---
 
 ## Architecture overview
-
-### Rule schema
-Every rule is an `AutoPropertyRule` — a flat object with common top-level fields
-plus a discriminated union on `type`:
-
-```
-type AutoPropertyRule = {
-  key, enabled, autoadd, no_overwrite,
-  trigger: Trigger[],
-  whererun: string[], whereignore: string[],
-  strip_markdown, trim_whitespace, case_sensitive,
-  format: string   // template string, e.g. "https://example.com/${result}"
-} & RuleType
-```
-
-Five rule types: `file` | `lines` | `between` | `headings` | `callouts`
-
-Each type has its own `rule: XxxRule` object shape. See `settings.ts` for the
-full interfaces.
 
 ### Execution pipeline (main.ts)
 ```
@@ -39,135 +165,111 @@ trigger fires
     → read file, extractBodyLines()
     → processFrontMatter() [single atomic write]
       → filter rules via shouldRun()
-      → evaluateRule() per rule
-          → file type: evaluateFileRule()
-          → all others: toBoundaryConditions() → extractBetweenBoundaries()
-      → applyOutputTransforms() [trim, strip_markdown, format template]
-      → write changed values to frontmatter
-    → show Notice if changes > 0
+      → per rule: flattenRule() → applyDefaults() → evaluateRule()
+          → file type:          evaluateFileRule()
+          → all content types:  toBoundaryConditions() → extractBetweenBoundaries()
+      → applyOutputTransforms() [trim, strip_markdown, format]
+      → write changed values, skip if unchanged
+      → track written keys — first non-empty result wins per key
+    → Notice if changes > 0
 ```
 
-### Key design decisions (don't relitigate these)
-- **Flat rule schema** — no nested "modifiers" or "features" arrays. Everything
-  is a named key.
-- **`type` not `basis`** — the discriminator field is called `type`.
-- **`between` as the core primitive** — Lines, Headings, Callouts all translate
-  to boundary conditions and run through `extractBetweenBoundaries()`. This is
-  intentional. Don't refactor it.
-- **No dependencies** — zero npm dependencies beyond Obsidian's own API. Keep it
-  that way.
-- **`isWriting` flag** — prevents re-entrant modify events from our own
-  frontmatter writes. Set before `processFrontMatter`, cleared in `finally`.
-- **`format` template** — supports `${result}`, `${filename}`, `${folder}`,
-  `${path}`, `${created}`, `${modified}`. Unknown placeholders pass through
-  unchanged (intentional — visible and debuggable).
-- **Naming** — avoid "basis" (collides with Obsidian Bases feature), avoid
-  "template" (collides with Obsidian Templates). Use "type" and "format".
-- **`on save` trigger removed** — Obsidian has no clean native save event.
-  Not worth the complexity. Users can assign a hotkey to the manual command.
+### Key design decisions (don't relitigate)
+- **Flat schema, recursive parser** — structure is user's choice. Parser normalises
+  before use. See above.
+- **Everything optional except `key`** — defaults cover all omitted fields.
+- **`between` as the core primitive** — Lines, Headings, Callouts all translate to
+  boundary conditions via `toBoundaryConditions()` and run through
+  `extractBetweenBoundaries()`. Intentional. Don't refactor.
+- **No dependencies** — zero npm dependencies beyond Obsidian's API. Keep it that way.
+- **`isWriting` flag** — prevents re-entrant modify events. Set before
+  `processFrontMatter`, cleared in `finally`. Do not remove.
+- **`format` template** — `${result}`, `${filename}`, `${folder}`, `${path}`,
+  `${created}`, `${modified}`. Unknown placeholders pass through unchanged.
+- **First non-empty wins per key** — if multiple rules target the same key, the
+  first one (in list order) that produces a non-empty value wins. Track with a
+  `Set<string>` of already-written keys inside `processFrontMatter`.
+- **No `on save` trigger** — Obsidian has no clean native save event. Removed.
+  Users can assign a hotkey to the manual command.
+- **Naming** — avoid "basis" (collides with Obsidian Bases), avoid "template"
+  (collides with Obsidian Templates). Use "type" and "format".
 
 ---
 
-## Known open tasks
+## Open tasks
 
-### Must-do before v2.0.0 release
+### Must-do before v2.0.0
 
-1. **`omit_match` on LinesRule** — v1 had "omit search string from result".
-   Needs to be added back. Field: `omit_match: boolean` on `LinesRule`.
-   After a line matches, strip the first occurrence of `rule.value` from the
-   result string before returning.
-   Example: rule value `"- [ ]"`, line `"- [ ] Buy milk"` → result `"Buy milk"`.
+1. **Rewrite TypeScript types** to match new flat schema. Replace the discriminated
+   union with a single `AutoPropertyRule` interface where everything except `key`
+   is optional. Add `ResolvedRule` as the post-defaults, post-flatten shape used
+   internally during evaluation.
 
-2. **`ignore_indentation` on LinesRule** — v1 trimmed before matching.
-   In v2, `trim_whitespace` is output-only. Need a separate
-   `ignore_indentation: boolean` that trims the line *before the match check*
-   but does not affect the returned value. These are different operations and
-   must stay separate.
+2. **Implement `flattenRule()` and `applyDefaults()`** in main.ts. These run at
+   the start of `evaluateRule()` before any type switching.
 
-3. **Settings GUI needs updating** for the two fields above — add them to
-   `buildLinesFields()` in `settings.ts`.
+3. **`omit_match`** — after a Lines rule matches, strip the first occurrence of
+   `value` from the result string.
+   Example: value `"- [ ]"`, line `"- [ ] Buy milk"` → `"Buy milk"`.
 
-4. **Jest test suite** — no tests exist yet. All static methods on
-   `AutoPropertyPlugin` are pure functions and should be straightforward to test.
-   Priority order:
+4. **`ignore_indentation`** — trim the line *before the match check only*.
+   Does not affect the returned value. Separate from `trim_whitespace`.
+
+5. **`whererun` / `whereignore` logic** in `shouldRun()`:
+   - If `whererun` non-empty, file path must match one of those folders
+   - Subtract: if file matches any `whereignore` folder, skip
+   - `whereignore` wins if both match
+
+6. **Update settings GUI** to reflect flat schema. The `rule: { ... }` sub-object
+   is gone. All fields live at the top level of the rule. `buildXxxFields()`
+   functions need updating accordingly. JSON output should omit default-valued
+   fields.
+
+7. **Ruleset import/export** — dedicated section at top of settings tab:
+   - Export: `JSON.stringify` of `settings.rules` (non-default fields only)
+     copied to clipboard
+   - Import: textarea, "Replace all" and "Append" buttons, validate before commit
+
+8. **Jest test suite** — no tests exist. All evaluation logic is pure functions,
+   straightforward to test. Priority:
+   - `flattenRule` (various nesting structures)
+   - `applyDefaults`
    - `extractBetweenBoundaries` (all 4 type cases)
-   - `evaluateRule` (one test per rule type)
+   - `evaluateRule` (one per type)
    - `stripMarkdown`
-   - `applyFormat` / `applyOutputTransforms`
+   - `applyFormat`
    - `shouldRun`
    - `valuesEqual`
-   
-   A minimal `TFile` mock is needed for file-dependent tests. There is a standard
-   Jest config that works for Obsidian plugins — find and use it.
 
-5. **Ruleset import/export** — users need to be able to share/backup their full
-   ruleset as JSON. Should live as a dedicated section at the top of the settings
-   tab (above individual rule panels). Requirements:
-   - Export: copy full `settings.rules` array as formatted JSON to clipboard
-   - Import: textarea for paste-in, with "Replace all" and "Append" buttons
-   - Validate JSON before committing (use `tryParseRuleJson` pattern already in
-     settings.ts, extended to validate an array)
-   - Show clear error if JSON is invalid
-
-6. **Multiple rules targeting the same key** — currently untested behaviour.
-   Decided approach: **first non-empty wins** within a single `update()` call.
-   Implement by tracking a `Set<string>` of keys already written in the current
-   `processFrontMatter` pass, and skipping subsequent rules for that key.
-
-7. **`whererun` / `whereignore` logic** — currently not implemented in
-   `shouldRun()`. Logic should be:
-   - If `whererun` is non-empty, file path must start with one of those folders
-   - Then subtract: if file path starts with any `whereignore` folder, skip
-   - `whereignore` wins over `whererun` if both match
-
-### Nice-to-have / v2.1 candidates
-
-- **`${this.someKey}` in format templates** — lets users reference other
-  frontmatter properties in the format string. Constraint for v2.1: can only
-  reference properties *not* managed by auto-properties (avoids circular
-  dependency resolution). Medium complexity.
-- **Date format modifier on File rules** — `date_format: 'iso' | 'unix' | 'locale'`
-  for `created` and `modified` pulls. Currently always outputs ISO.
-- **Block ID → link conversion** — v1 detected block IDs (`^blockid`) in matched
-  lines and converted them to `[[#^blockid|text]]` links. Not yet ported to v2.
-- **Embed → link conversion** — v1 stripped the `!` from embedded image matches
-  so `![[image.png]]` became `[[image.png]]` in the property value. Not yet
-  ported.
+### v2.1 candidates
+- `${this.someKey}` in format — reference other frontmatter properties.
+  Constraint: only non-auto-properties-managed keys (avoids circular deps).
+- Date format modifier on file rules — `date_format: 'iso' | 'unix' | 'locale'`
+- Block ID → link conversion (was in v1, not yet ported)
+- Embed → link conversion (was in v1, not yet ported)
 
 ---
 
 ## Settings GUI notes
-
-- Each rule renders as a collapsible panel (`property-panel` CSS class)
-- Panel has two modes: GUI and JSON, toggled by a button inside the panel
-  (not in the header — header is always visible when collapsed)
-- GUI → JSON: serializes current in-memory state into textarea
-- JSON → GUI: parses and validates, then rebuilds GUI view via `rebuildGuiView()`
-- Rule type switching preserves per-type rule data in a `ruleCache` map until Save
-- `makeSummaryText()` generates the one-line collapsed summary per rule type
-- `buildXxxFields()` functions are module-level (not class methods) — one per
-  rule type
-
----
+- Each rule = collapsible panel (`property-panel` CSS class)
+- GUI mode and JSON mode toggled by button *inside* the panel (hidden when collapsed)
+- GUI → JSON: serialise current in-memory state, **omitting default-valued fields**
+- JSON → GUI: flatten → apply defaults → rebuild GUI via `rebuildGuiView()`
+- Rule type switching preserves per-type field values in a `ruleCache` map until Save
+- `makeSummaryText()` generates one-line collapsed summary per rule type
+- `buildXxxFields()` — module-level functions, one per rule type
 
 ## File structure
 ```
 main.ts          — plugin entrypoint, all execution logic
 settings.ts      — types, interfaces, settings tab GUI
-styles.css       — CSS classes used by settings GUI
+styles.css       — CSS used by settings GUI
 manifest.json    — Obsidian plugin manifest
 ```
 
----
-
-## Things to be careful about
-
-- `processFrontMatter` is Obsidian's atomic read-modify-write for frontmatter.
-  All rule evaluation and all writes must happen inside a single call per
-  `update()` invocation. Do not read frontmatter separately before calling it.
-- The `modify` vault event fires for *all* files, not just the active one.
+## Gotchas
+- `processFrontMatter` is atomic — all rule evaluation and writes must happen
+  inside a single call per `update()`. Do not read frontmatter separately first.
+- `modify` vault event fires for ALL vault files, not just the active one.
   The handler already filters to active file only — don't remove that check.
 - `isWriting` must be cleared in a `finally` block — already done, don't change.
-- TypeScript will complain about the `(wip as any) = { ...wip, ...defaults }`
-  pattern in the rule type switcher in settings.ts. This is intentional and
-  known — discriminated union reassignment limitation. Leave it.

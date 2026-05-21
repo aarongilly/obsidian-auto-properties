@@ -73,6 +73,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on('file-open', (file) => {
+				if (this.isWriting) return
 				if (!file || file.extension !== 'md') return
 				void this.update(file, 'open')
 			})
@@ -84,7 +85,7 @@ export default class AutoPropertyPlugin extends Plugin {
 			this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
 				const previous = this.lastActiveFile
 				this.lastActiveFile = this.getFileFromLeaf(leaf)
-				if (!previous) return
+				if (this.isWriting || !previous) return
 				void this.update(previous, 'focus_change')
 			})
 		)
@@ -285,6 +286,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 			case 'between': {
 				const { startDelim, endDelim, inclusive, multiline } = boundaries
+				if (!startDelim) return null
 				const matches: string[] = []
 
 				if (multiline) {

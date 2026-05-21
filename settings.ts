@@ -795,7 +795,7 @@ function makeSummaryText(rule: ResolvedRule): string {
 	switch (rule.type) {
 		case 'file':     return `${t('type_file')} → ${rule.file_pull}`
 		case 'lines':    return `${t('type_lines')} → ${rule.pull} ${rule.match} "${rule.value}"`
-		case 'between':  return `${t('type_between')} → ${rule.pull} between "${rule.start}"`
+		case 'between':  return `${t('type_between')} → ${rule.pull} between "${rule.start}" and "${rule.end || rule.start}"`
 		case 'headings': return `${t('type_headings')} → ${rule.pull} (${rule.heading_match}: ${rule.heading_value})`
 		case 'callouts': return `${t('type_callouts')} → ${rule.pull}${rule.callout_type ? ` [!${rule.callout_type}]` : ''} (${rule.extract})`
 	}

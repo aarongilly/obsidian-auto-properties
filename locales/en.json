@@ -46,7 +46,7 @@
   "check_include_search":       "Include search string",
   "check_pull_next":            "Pull next line",
   "check_ignore_indent":        "Ignore indentation",
-  "check_inclusive":            "Inclusive",
+  "check_inclusive":            "Retain delimiters",
   "check_multiline":            "Multiline",
   "check_include_heading_line": "Include heading line",
   "check_include_subheadings":  "Include subheadings",

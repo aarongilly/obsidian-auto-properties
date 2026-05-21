@@ -1,4 +1,5 @@
 import { App, Notice, PluginSettingTab, Setting, setIcon } from 'obsidian'
+import { t, tf } from './i18n'
 
 // ── Avoid circular import from main.ts ───────────────────────────────────────
 
@@ -236,8 +237,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		containerEl.empty()
 
 		new Setting(containerEl)
-			.setName('Show notices')
-			.setDesc('Show a notice every time auto-property values have been updated.')
+			.setName(t('ui_show_notices'))
+			.setDesc(t('ui_show_notices_desc'))
 			.addToggle(toggle => {
 				toggle.setValue(this.plugin.settings.showNotices).onChange(async value => {
 					this.plugin.settings.showNotices = value
@@ -247,11 +248,18 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', { text: 'Auto-properties', cls: 'ap-main-heading' })
 
+		const wikiP = containerEl.createEl('p', { cls: 'ap-wiki-link' })
+		wikiP.createEl('a', {
+			text: t('ui_wiki_link'),
+			href: 'https://github.com/aarongilly/obsidian-auto-properties/wiki',
+			attr: { target: '_blank', rel: 'noopener' },
+		})
+
 		this.plugin.settings.rules.forEach((rule, index) => {
 			containerEl.appendChild(this.createRulePanel(rule, index))
 		})
 
-		const addBtn = containerEl.createEl('button', { text: '+ Add auto-property', cls: 'ap-add-btn' })
+		const addBtn = containerEl.createEl('button', { text: t('ui_add_rule'), cls: 'ap-add-btn' })
 		addBtn.onclick = async () => {
 			this.plugin.settings.rules.push({ key: '' })
 			await this.plugin.saveSettings()
@@ -260,21 +268,21 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		// ── Import / Export ──────────────────────────────────────────────────
 
-		new Setting(containerEl).setName('Import / Export').setHeading()
+		new Setting(containerEl).setName(t('ui_import_export')).setHeading()
 
 		new Setting(containerEl)
-			.setName('Export rules')
-			.setDesc('Copies all current rules as JSON to your clipboard, and shows the JSON below for manual copying if the clipboard is unavailable.')
+			.setName(t('ui_export_rules'))
+			.setDesc(t('ui_export_rules_desc'))
 			.addButton(btn => {
-				btn.setButtonText('Export to clipboard')
+				btn.setButtonText(t('ui_export_to_clipboard'))
 				btn.onClick(() => {
 					const json = JSON.stringify(this.plugin.settings.rules, null, 2)
 					exportTextarea.value = json
 					exportTextarea.style.display = 'block'
 					navigator.clipboard.writeText(json).then(() => {
-						new Notice('Rules copied to clipboard.')
+						new Notice(t('notice_copied'))
 					}).catch(() => {
-						new Notice('Clipboard unavailable — copy the JSON below.')
+						new Notice(t('notice_clipboard_unavail'))
 					})
 				})
 			})
@@ -290,8 +298,8 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		containerEl.appendChild(exportTextarea)
 
 		new Setting(containerEl)
-			.setName('Import rules')
-			.setDesc('Paste exported JSON below. "Append" adds rules to the end of your existing list. "Replace all" discards current rules and loads the imported ones.')
+			.setName(t('ui_import_rules'))
+			.setDesc(t('ui_import_rules_desc'))
 
 		const importTextarea = document.createElement('textarea')
 		importTextarea.style.width = '100%'
@@ -299,7 +307,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		importTextarea.style.fontFamily = 'monospace'
 		importTextarea.style.fontSize = 'var(--font-smallest)'
 		importTextarea.style.marginBottom = '8px'
-		importTextarea.placeholder = 'Paste exported JSON here…'
+		importTextarea.placeholder = t('ui_import_placeholder')
 		containerEl.appendChild(importTextarea)
 
 		const importButtons = document.createElement('div')
@@ -308,33 +316,39 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		containerEl.appendChild(importButtons)
 
 		const appendBtn = document.createElement('button')
-		appendBtn.setText('Append to existing')
+		appendBtn.setText(t('ui_append'))
 		appendBtn.onclick = async () => {
 			const rules = parseRulesJson(importTextarea.value)
 			if (!rules) {
-				new Notice('Invalid JSON — must be an array of rule objects, each with a "key" field.')
+				new Notice(t('notice_invalid_json_import'))
 				return
 			}
 			this.plugin.settings.rules.push(...rules)
 			await this.plugin.saveSettings()
 			this.display()
-			new Notice(`Appended ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}.`)
+			new Notice(rules.length === 1
+				? t('notice_appended_one')
+				: tf('notice_appended_many', { count: rules.length })
+			)
 		}
 		importButtons.appendChild(appendBtn)
 
 		const replaceBtn = document.createElement('button')
-		replaceBtn.setText('Replace all rules')
+		replaceBtn.setText(t('ui_replace_all'))
 		replaceBtn.addClasses(['mod-warning'])
 		replaceBtn.onclick = async () => {
 			const rules = parseRulesJson(importTextarea.value)
 			if (!rules) {
-				new Notice('Invalid JSON — must be an array of rule objects, each with a "key" field.')
+				new Notice(t('notice_invalid_json_import'))
 				return
 			}
 			this.plugin.settings.rules = rules
 			await this.plugin.saveSettings()
 			this.display()
-			new Notice(`Replaced all rules with ${rules.length} imported ${rules.length === 1 ? 'rule' : 'rules'}.`)
+			new Notice(rules.length === 1
+				? t('notice_replaced_one')
+				: tf('notice_replaced_many', { count: rules.length })
+			)
 		}
 		importButtons.appendChild(replaceBtn)
 	}
@@ -359,20 +373,20 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			if (wip.key) {
 				left.createSpan({ text: wip.key, cls: 'ap-summary-key' })
 			} else {
-				left.createSpan({ text: '✦ New auto-property', cls: 'ap-summary-key ap-key-missing' })
+				left.createSpan({ text: t('ui_new_rule'), cls: 'ap-summary-key ap-key-missing' })
 			}
-			left.createSpan({ text: !wip.enabled ? '— disabled' : makeSummaryText(wip), cls: 'ap-summary-desc' })
+			left.createSpan({ text: !wip.enabled ? t('ui_disabled') : makeSummaryText(wip), cls: 'ap-summary-desc' })
 
 			const badges = summaryEl.createDiv('ap-summary-badges')
-			const triggerDefs: { value: Trigger; icon: string; title: string }[] = [
-				{ value: 'modification', icon: 'pencil',           title: 'On modification' },
-				{ value: 'open',         icon: 'file',             title: 'On open' },
-				{ value: 'focus_change', icon: 'arrow-left-right', title: 'On focus change' },
+			const triggerDefs: { value: Trigger; icon: string; titleKey: 'badge_on_modify' | 'badge_on_open' | 'badge_on_focus' }[] = [
+				{ value: 'modification', icon: 'pencil',           titleKey: 'badge_on_modify' },
+				{ value: 'open',         icon: 'file',             titleKey: 'badge_on_open' },
+				{ value: 'focus_change', icon: 'arrow-left-right', titleKey: 'badge_on_focus' },
 			]
-			for (const { value, icon, title } of triggerDefs) {
+			for (const { value, icon, titleKey } of triggerDefs) {
 				const b = badges.createSpan({
 					cls: 'ap-badge ' + (wip.trigger.includes(value) ? 'ap-badge-on' : 'ap-badge-off'),
-					attr: { title },
+					attr: { title: t(titleKey) },
 				})
 				setIcon(b, icon)
 			}
@@ -380,11 +394,11 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				badges.createDiv('ap-badge-sep')
 			}
 			if (wip.autoadd) {
-				const b = badges.createSpan({ cls: 'ap-badge ap-badge-behavior', attr: { title: 'Auto-adds property if missing' } })
+				const b = badges.createSpan({ cls: 'ap-badge ap-badge-behavior', attr: { title: t('badge_autoadd') } })
 				setIcon(b, 'plus-square')
 			}
 			if (wip.no_overwrite) {
-				const b = badges.createSpan({ cls: 'ap-badge ap-badge-behavior', attr: { title: 'Does not overwrite existing values' } })
+				const b = badges.createSpan({ cls: 'ap-badge ap-badge-behavior', attr: { title: t('badge_no_overwrite') } })
 				setIcon(b, 'lock')
 			}
 		}
@@ -399,19 +413,18 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		let jsonMode = false
 
-		// Top bar: key input + Save / Delete / JSON toggle
 		const topBar   = body.createDiv('ap-top-bar')
 		const keyInput = topBar.createEl('input', {
 			type: 'text',
 			cls: 'ap-key-input',
-			attr: { placeholder: 'property-key' },
+			attr: { placeholder: t('ui_key_placeholder') },
 		})
 		keyInput.value = wip.key
 
 		const topActions = topBar.createDiv('ap-top-actions')
-		const saveBtn    = topActions.createEl('button', { text: 'Save',     cls: 'ap-save-btn' })
-		const deleteBtn  = topActions.createEl('button', { text: 'Delete',   cls: 'mod-warning' })
-		const jsonBtn    = topActions.createEl('button', { text: '{ } JSON' })
+		const saveBtn    = topActions.createEl('button', { text: t('ui_save'),   cls: 'ap-save-btn' })
+		const deleteBtn  = topActions.createEl('button', { text: t('ui_delete'), cls: 'mod-warning' })
+		const jsonBtn    = topActions.createEl('button', { text: t('ui_json_mode') })
 
 		const markDirty = () => saveBtn.addClass('highlight')
 		keyInput.oninput = () => { wip.key = keyInput.value; markDirty() }
@@ -426,14 +439,14 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		saveBtn.onclick = async () => {
 			if (jsonMode) {
 				const parsed = tryParseRuleJson(jsonEditor.value)
-				if (!parsed) { new Notice('Invalid JSON — please fix before saving.'); return }
+				if (!parsed) { new Notice(t('notice_invalid_json_save')); return }
 				wip = applyDefaults(parsed as unknown as Record<string, unknown>)
 			}
-			if (!wip.key.trim()) { new Notice('Key cannot be blank.'); return }
+			if (!wip.key.trim()) { new Notice(t('notice_key_blank')); return }
 			this.plugin.settings.rules[index] = stripDefaults(wip)
 			await this.plugin.saveSettings()
 			this.display()
-			new Notice('Auto-property saved.')
+			new Notice(t('notice_saved'))
 		}
 
 		deleteBtn.onclick = async () => {
@@ -448,14 +461,14 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				jsonEditor.value = JSON.stringify(stripDefaults(wip), null, 2)
 				guiView.addClass('hide')
 				jsonView.removeClass('hide')
-				jsonBtn.setText('⚙ GUI')
+				jsonBtn.setText(t('ui_gui_mode'))
 			} else {
 				const parsed = tryParseRuleJson(jsonEditor.value)
-				if (!parsed) { new Notice('Invalid JSON — fix before switching back.'); return }
+				if (!parsed) { new Notice(t('notice_invalid_json_switch')); return }
 				wip = applyDefaults(parsed as unknown as Record<string, unknown>)
 				guiView.removeClass('hide')
 				jsonView.addClass('hide')
-				jsonBtn.setText('{ } JSON')
+				jsonBtn.setText(t('ui_json_mode'))
 				rebuildGui()
 			}
 		}
@@ -465,11 +478,12 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 			// ── Core row: type selector + behaviour toggles ───────────────────
 			const coreRow = guiView.createDiv('ap-row')
-			coreRow.createSpan({ text: 'Type', cls: 'ap-row-label' })
+			coreRow.createSpan({ text: t('ui_type'), cls: 'ap-row-label' })
 			const typeSelect = coreRow.createEl('select', { cls: 'ap-select' })
-			;(['lines', 'between', 'headings', 'callouts', 'file'] as RuleType[]).forEach(t => {
-				const opt = typeSelect.createEl('option', { value: t, text: t.charAt(0).toUpperCase() + t.slice(1) })
-				if (wip.type === t) opt.selected = true
+			;(['lines', 'between', 'headings', 'callouts', 'file'] as RuleType[]).forEach(ruleType => {
+				const labelKey = `type_${ruleType}` as const
+				const opt = typeSelect.createEl('option', { value: ruleType, text: t(labelKey) })
+				if (wip.type === ruleType) opt.selected = true
 			})
 			typeSelect.onchange = () => {
 				const newType = typeSelect.value as RuleType
@@ -480,49 +494,49 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				rebuildGui()
 			}
 			coreRow.createDiv('ap-spacer')
-			addCheck(coreRow, 'Enabled',      wip.enabled,      v => { wip.enabled      = v; markDirty() })
-			addCheck(coreRow, 'Auto-add',     wip.autoadd,      v => { wip.autoadd      = v; markDirty() })
-			addCheck(coreRow, 'No overwrite', wip.no_overwrite, v => { wip.no_overwrite = v; markDirty() })
+			addCheck(coreRow, t('check_enabled'),      wip.enabled,      v => { wip.enabled      = v; markDirty() })
+			addCheck(coreRow, t('check_auto_add'),     wip.autoadd,      v => { wip.autoadd      = v; markDirty() })
+			addCheck(coreRow, t('check_no_overwrite'), wip.no_overwrite, v => { wip.no_overwrite = v; markDirty() })
 
 			// ── Type-specific fields ──────────────────────────────────────────
-			guiView.createDiv({ cls: 'ap-section-header', text: 'Input' })
+			guiView.createDiv({ cls: 'ap-section-header', text: t('section_input') })
 			const typeSection = guiView.createDiv('ap-type-section')
 			buildCompactTypeFields(typeSection, wip, markDirty)
 
 			// ── Output & Filters ──────────────────────────────────────────────
-			guiView.createDiv({ cls: 'ap-section-header', text: 'Output & Filters' })
+			guiView.createDiv({ cls: 'ap-section-header', text: t('section_output') })
 			const outputRow = guiView.createDiv('ap-row')
-			addCheck(outputRow, 'Strip markdown',  wip.strip_markdown,  v => { wip.strip_markdown  = v; markDirty() })
-			addCheck(outputRow, 'Trim whitespace', wip.trim_whitespace, v => { wip.trim_whitespace = v; markDirty() })
+			addCheck(outputRow, t('check_strip_markdown'),  wip.strip_markdown,  v => { wip.strip_markdown  = v; markDirty() })
+			addCheck(outputRow, t('check_trim_whitespace'), wip.trim_whitespace, v => { wip.trim_whitespace = v; markDirty() })
 
 			const formatField = guiView.createDiv('ap-field')
-			formatField.createEl('label', { text: 'Value format', cls: 'ap-field-label' })
+			formatField.createEl('label', { text: t('ui_format_label'), cls: 'ap-field-label' })
 			const formatInput = formatField.createEl('input', {
 				type: 'text',
 				cls: 'ap-field-input',
-				attr: { placeholder: 'e.g. https://example.com/${result}' },
+				attr: { placeholder: t('ui_format_placeholder') },
 			})
 			formatInput.value = wip.format
 			formatInput.oninput = () => { wip.format = formatInput.value; markDirty() }
 
 			// ── Triggers ─────────────────────────────────────────────────────
-			guiView.createDiv({ cls: 'ap-section-header', text: 'Triggers' })
+			guiView.createDiv({ cls: 'ap-section-header', text: t('section_triggers') })
 			const triggersRow = guiView.createDiv('ap-triggers-row')
-			const triggerDefs: { value: Trigger; label: string; icon: string; desc: string }[] = [
-				{ value: 'modification', label: 'Modify', icon: 'pencil',           desc: 'Runs shortly after the note content changes.' },
-				{ value: 'open',         label: 'Open',   icon: 'file',             desc: 'Runs once when the note is opened.' },
-				{ value: 'focus_change', label: 'Focus',  icon: 'arrow-left-right', desc: 'Runs when you switch away from this note.' },
+			const triggerDefs: { value: Trigger; labelKey: 'trigger_modify' | 'trigger_open' | 'trigger_focus'; icon: string; descKey: 'trigger_modify_desc' | 'trigger_open_desc' | 'trigger_focus_desc' }[] = [
+				{ value: 'modification', labelKey: 'trigger_modify', icon: 'pencil',           descKey: 'trigger_modify_desc' },
+				{ value: 'open',         labelKey: 'trigger_open',   icon: 'file',             descKey: 'trigger_open_desc' },
+				{ value: 'focus_change', labelKey: 'trigger_focus',  icon: 'arrow-left-right', descKey: 'trigger_focus_desc' },
 			]
-			for (const { value, label, icon, desc } of triggerDefs) {
+			for (const { value, labelKey, icon, descKey } of triggerDefs) {
 				const pill = triggersRow.createEl('button', {
 					cls: 'ap-trigger-pill' + (wip.trigger.includes(value) ? ' ap-on' : ''),
-					attr: { title: desc },
+					attr: { title: t(descKey) },
 				})
 				setIcon(pill, icon)
-				pill.appendText(' ' + label)
+				pill.appendText(' ' + t(labelKey))
 				pill.onclick = () => {
 					if (wip.trigger.includes(value)) {
-						wip.trigger = wip.trigger.filter(t => t !== value)
+						wip.trigger = wip.trigger.filter(tr => tr !== value)
 						pill.removeClass('ap-on')
 					} else {
 						wip.trigger.push(value)
@@ -533,23 +547,23 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			}
 
 			// ── Scope ─────────────────────────────────────────────────────────
-			guiView.createDiv({ cls: 'ap-section-header', text: 'Scope' })
-			const scopeRow  = guiView.createDiv('ap-scope-row')
+			guiView.createDiv({ cls: 'ap-section-header', text: t('section_scope') })
+			const scopeRow = guiView.createDiv('ap-scope-row')
 
 			const runHalf = scopeRow.createDiv('ap-scope-half')
-			runHalf.createEl('label', { text: 'Run in folders', cls: 'ap-field-label' })
+			runHalf.createEl('label', { text: t('scope_run_in'), cls: 'ap-field-label' })
 			const runTa = runHalf.createEl('textarea', {
 				cls: 'ap-scope-textarea',
-				attr: { rows: '2', placeholder: '/projects\n/work' },
+				attr: { rows: '2', placeholder: t('scope_run_placeholder') },
 			})
 			runTa.value = wip.whererun.join('\n')
 			runTa.oninput = () => { wip.whererun = runTa.value.split('\n').map(s => s.trim()).filter(Boolean); markDirty() }
 
 			const ignoreHalf = scopeRow.createDiv('ap-scope-half')
-			ignoreHalf.createEl('label', { text: 'Ignore folders', cls: 'ap-field-label' })
+			ignoreHalf.createEl('label', { text: t('scope_ignore'), cls: 'ap-field-label' })
 			const ignoreTa = ignoreHalf.createEl('textarea', {
 				cls: 'ap-scope-textarea',
-				attr: { rows: '2', placeholder: '/templates\n/archive' },
+				attr: { rows: '2', placeholder: t('scope_ignore_placeholder') },
 			})
 			ignoreTa.value = wip.whereignore.join('\n')
 			ignoreTa.oninput = () => { wip.whereignore = ignoreTa.value.split('\n').map(s => s.trim()).filter(Boolean); markDirty() }
@@ -625,15 +639,15 @@ function buildCompactTypeFields(el: HTMLElement, wip: ResolvedRule, markDirty: (
 function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row = el.createDiv('ap-row')
 	const p = pair(row)
-	p.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	p.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<FilePull>(p, [
-		['name',      'File name'],
-		['path',      'Full path'],
-		['folder',    'Folder'],
-		['extension', 'Extension'],
-		['created',   'Created date'],
-		['modified',  'Modified date'],
-		['size',      'File size (bytes)'],
+		['name',      t('file_pull_name')],
+		['path',      t('file_pull_path')],
+		['folder',    t('file_pull_folder')],
+		['extension', t('file_pull_extension')],
+		['created',   t('file_pull_created')],
+		['modified',  t('file_pull_modified')],
+		['size',      t('file_pull_size')],
 	], wip.file_pull, v => { wip.file_pull = v; markDirty() })
 }
 
@@ -641,116 +655,116 @@ function buildLinesCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => 
 	const row1 = el.createDiv('ap-row')
 
 	const pullP = pair(row1)
-	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	pullP.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<Pull>(pullP, [
-		['first', 'First'],
-		['all',   'All'],
-		['count', 'Count'],
+		['first', t('pull_first')],
+		['all',   t('pull_all')],
+		['count', t('pull_count')],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
 	const matchP = pair(row1)
-	matchP.createSpan({ text: 'Match', cls: 'ap-row-label' })
+	matchP.createSpan({ text: t('ui_match'), cls: 'ap-row-label' })
 	addSelect<LineMatch>(matchP, [
-		['starting_with', 'Starting with'],
-		['ending_with',   'Ending with'],
-		['containing',    'Containing'],
-		['regex',         'Regex'],
+		['starting_with', t('match_starting_with')],
+		['ending_with',   t('match_ending_with')],
+		['containing',    t('match_containing')],
+		['regex',         t('match_regex')],
 	], wip.match, v => { wip.match = v; markDirty() })
 
 	const searchP = pair(row1, true)
-	searchP.createSpan({ text: 'Search string', cls: 'ap-row-label' })
-	addInlineInput(searchP, 'e.g. - [ ]', wip.value, v => { wip.value = v; markDirty() }, true)
+	searchP.createSpan({ text: t('ui_search'), cls: 'ap-row-label' })
+	addInlineInput(searchP, t('search_placeholder'), wip.value, v => { wip.value = v; markDirty() }, true)
 
 	const row2 = el.createDiv('ap-row')
-	addCheck(row2, 'Include search string', !wip.omit_match,         v => { wip.omit_match         = !v; markDirty() })
-	addCheck(row2, 'Case sensitive',         wip.case_sensitive,     v => { wip.case_sensitive     = v;  markDirty() })
-	addCheck(row2, 'Pull next line',         wip.pull_next,          v => { wip.pull_next          = v;  markDirty() })
-	addCheck(row2, 'Ignore indentation',     wip.ignore_indentation, v => { wip.ignore_indentation = v;  markDirty() })
+	addCheck(row2, t('check_include_search'), !wip.omit_match,         v => { wip.omit_match         = !v; markDirty() })
+	addCheck(row2, t('check_case_sensitive'),  wip.case_sensitive,     v => { wip.case_sensitive     = v;  markDirty() })
+	addCheck(row2, t('check_pull_next'),       wip.pull_next,          v => { wip.pull_next          = v;  markDirty() })
+	addCheck(row2, t('check_ignore_indent'),   wip.ignore_indentation, v => { wip.ignore_indentation = v;  markDirty() })
 }
 
 function buildBetweenCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
 
 	const pullP = pair(row1)
-	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	pullP.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<Pull>(pullP, [
-		['first', 'First'],
-		['all',   'All'],
-		['count', 'Count'],
+		['first', t('pull_first')],
+		['all',   t('pull_all')],
+		['count', t('pull_count')],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
 	const startP = pair(row1)
-	startP.createSpan({ text: 'Start', cls: 'ap-row-label' })
-	addInlineInput(startP, 'e.g. ==', wip.start, v => { wip.start = v; markDirty() }).addClass('ap-narrow')
+	startP.createSpan({ text: t('ui_start'), cls: 'ap-row-label' })
+	addInlineInput(startP, t('start_placeholder'), wip.start, v => { wip.start = v; markDirty() }).addClass('ap-narrow')
 
 	const endP = pair(row1)
-	endP.createSpan({ text: 'End', cls: 'ap-row-label' })
-	addInlineInput(endP, 'Same as start', wip.end, v => { wip.end = v; markDirty() }).addClass('ap-narrow')
+	endP.createSpan({ text: t('ui_end'), cls: 'ap-row-label' })
+	addInlineInput(endP, t('end_placeholder'), wip.end, v => { wip.end = v; markDirty() }).addClass('ap-narrow')
 
 	const row2 = el.createDiv('ap-row')
-	addCheck(row2, 'Inclusive',      wip.inclusive,      v => { wip.inclusive      = v; markDirty() })
-	addCheck(row2, 'Multiline',      wip.multiline,      v => { wip.multiline      = v; markDirty() })
-	addCheck(row2, 'Case sensitive', wip.case_sensitive, v => { wip.case_sensitive = v; markDirty() })
+	addCheck(row2, t('check_inclusive'),      wip.inclusive,      v => { wip.inclusive      = v; markDirty() })
+	addCheck(row2, t('check_multiline'),      wip.multiline,      v => { wip.multiline      = v; markDirty() })
+	addCheck(row2, t('check_case_sensitive'), wip.case_sensitive, v => { wip.case_sensitive = v; markDirty() })
 }
 
 function buildHeadingsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
 
 	const pullP = pair(row1)
-	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	pullP.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<Pull>(pullP, [
-		['text',  'Heading text only'],
-		['first', 'Full section content'],
-		['count', 'Count'],
+		['text',  t('pull_heading_text')],
+		['first', t('pull_full_section')],
+		['count', t('pull_count')],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
 	const targetP = pair(row1)
-	targetP.createSpan({ text: 'Target by', cls: 'ap-row-label' })
+	targetP.createSpan({ text: t('ui_target_by'), cls: 'ap-row-label' })
 	addSelect<HeadingMatch>(targetP, [
-		['level', 'Level (1–6)'],
-		['text',  'Heading text'],
+		['level', t('heading_target_level')],
+		['text',  t('heading_target_text')],
 	], wip.heading_match, v => { wip.heading_match = v; markDirty() })
 
 	const valP = pair(row1)
-	valP.createSpan({ text: 'Value', cls: 'ap-row-label' })
+	valP.createSpan({ text: t('ui_value'), cls: 'ap-row-label' })
 	addInlineInput(
 		valP,
-		wip.heading_match === 'level' ? '1–6' : 'Heading text',
+		wip.heading_match === 'level' ? t('heading_value_placeholder_level') : t('heading_value_placeholder_text'),
 		String(wip.heading_value),
 		v => { wip.heading_value = wip.heading_match === 'level' ? parseInt(v) || 1 : v; markDirty() },
 	).addClass('ap-narrow')
 
 	const row2 = el.createDiv('ap-row')
-	addCheck(row2, 'Include heading line', wip.include_heading_line, v => { wip.include_heading_line = v; markDirty() })
-	addCheck(row2, 'Include subheadings',  wip.include_subheadings,  v => { wip.include_subheadings  = v; markDirty() })
+	addCheck(row2, t('check_include_heading_line'), wip.include_heading_line, v => { wip.include_heading_line = v; markDirty() })
+	addCheck(row2, t('check_include_subheadings'),  wip.include_subheadings,  v => { wip.include_subheadings  = v; markDirty() })
 }
 
 function buildCalloutsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
 
 	const pullP = pair(row1)
-	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	pullP.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<Pull>(pullP, [
-		['first', 'First'],
-		['all',   'All'],
-		['count', 'Count'],
+		['first', t('pull_first')],
+		['all',   t('pull_all')],
+		['count', t('pull_count')],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
 	const typeP = pair(row1)
-	typeP.createSpan({ text: 'Type filter', cls: 'ap-row-label' })
-	addInlineInput(typeP, 'Any type', wip.callout_type, v => { wip.callout_type = v; markDirty() }).addClass('ap-narrow')
+	typeP.createSpan({ text: t('ui_type_filter'), cls: 'ap-row-label' })
+	addInlineInput(typeP, t('callout_filter_placeholder'), wip.callout_type, v => { wip.callout_type = v; markDirty() }).addClass('ap-narrow')
 
 	const extractP = pair(row1)
-	extractP.createSpan({ text: 'Extract', cls: 'ap-row-label' })
+	extractP.createSpan({ text: t('ui_extract'), cls: 'ap-row-label' })
 	addSelect<CalloutExtract>(extractP, [
-		['header', 'Header'],
-		['body',   'Body'],
-		['both',   'Both'],
+		['header', t('callout_extract_header')],
+		['body',   t('callout_extract_body')],
+		['both',   t('callout_extract_both')],
 	], wip.extract, v => { wip.extract = v; markDirty() })
 
 	const row2 = el.createDiv('ap-row')
-	addCheck(row2, 'Include type label', wip.include_type_label, v => { wip.include_type_label = v; markDirty() })
-	addCheck(row2, 'Case sensitive',     wip.case_sensitive,     v => { wip.case_sensitive     = v; markDirty() })
+	addCheck(row2, t('check_include_type_label'), wip.include_type_label, v => { wip.include_type_label = v; markDirty() })
+	addCheck(row2, t('check_case_sensitive'),      wip.case_sensitive,     v => { wip.case_sensitive     = v; markDirty() })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -777,12 +791,12 @@ function tryParseRuleJson(raw: string): AutoPropertyRule | null {
 }
 
 function makeSummaryText(rule: ResolvedRule): string {
-	if (!rule.enabled) return '— disabled'
+	if (!rule.enabled) return t('ui_disabled')
 	switch (rule.type) {
-		case 'file':     return `File → ${rule.file_pull}`
-		case 'lines':    return `Lines → ${rule.pull} ${rule.match} "${rule.value}"`
-		case 'between':  return `Between → ${rule.pull} between "${rule.start}"`
-		case 'headings': return `Headings → ${rule.pull} (${rule.heading_match}: ${rule.heading_value})`
-		case 'callouts': return `Callouts → ${rule.pull}${rule.callout_type ? ` [!${rule.callout_type}]` : ''} (${rule.extract})`
+		case 'file':     return `${t('type_file')} → ${rule.file_pull}`
+		case 'lines':    return `${t('type_lines')} → ${rule.pull} ${rule.match} "${rule.value}"`
+		case 'between':  return `${t('type_between')} → ${rule.pull} between "${rule.start}"`
+		case 'headings': return `${t('type_headings')} → ${rule.pull} (${rule.heading_match}: ${rule.heading_value})`
+		case 'callouts': return `${t('type_callouts')} → ${rule.pull}${rule.callout_type ? ` [!${rule.callout_type}]` : ''} (${rule.extract})`
 	}
 }

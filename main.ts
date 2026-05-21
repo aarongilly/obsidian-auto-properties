@@ -11,6 +11,7 @@ import {
 	flattenRule,
 	applyDefaults,
 } from './settings'
+import { t, tf } from './i18n'
 
 export default class AutoPropertyPlugin extends Plugin {
 	settings: AutoPropertyPluginSettings = DEFAULT_SETTINGS
@@ -46,7 +47,7 @@ export default class AutoPropertyPlugin extends Plugin {
 			name: 'Update auto-properties for every note in vault',
 			callback: () => {
 				const files = this.app.vault.getFiles().filter(f => f.extension === 'md')
-				new Notice(`Running auto-properties on ${files.length} notes…`)
+				new Notice(tf('notice_rules_running', { count: files.length }))
 				files.forEach(f => void this.update(f, 'manual'))
 			}
 		})
@@ -156,7 +157,10 @@ export default class AutoPropertyPlugin extends Plugin {
 		}
 
 		if (changesCount > 0 && this.settings.showNotices) {
-			new Notice(`Auto-properties: updated ${changesCount} ${changesCount === 1 ? 'property' : 'properties'}`)
+			new Notice(changesCount === 1
+					? t('notice_updated_one')
+					: tf('notice_updated_many', { count: changesCount })
+				)
 		}
 	}
 

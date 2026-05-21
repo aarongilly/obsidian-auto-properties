@@ -134,6 +134,15 @@
     cursor: pointer;
 }
 
+/* ── Field pairs: keep label + control together when row wraps ── */
+.ap-field-pair {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ap-field-pair.ap-pair-grow { flex: 1; min-width: 80px; }
+
 /* ── Inline text inputs ── */
 .ap-inline-input {
     font-size: var(--font-ui-smaller);
@@ -143,7 +152,8 @@
     background: var(--background-primary);
     color: var(--text-normal);
 }
-.ap-inline-input.ap-grow { flex: 1; min-width: 60px; }
+.ap-inline-input.ap-grow  { flex: 1; min-width: 60px; }
+.ap-inline-input.ap-narrow { width: 80px; }
 
 /* ── Compact checkboxes ── */
 .ap-check {
@@ -252,3 +262,41 @@
 
 /* ── Misc ── */
 .hide { display: none !important; }
+
+/* ── Mobile layout ── */
+@media (max-width: 600px) {
+    /* Stack each label+control pair vertically so they never separate */
+    .ap-type-section .ap-field-pair {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        white-space: normal;
+    }
+    /* Controls go full-width within their pair */
+    .ap-type-section .ap-field-pair .ap-select,
+    .ap-type-section .ap-field-pair .ap-inline-input {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    /* The grow pair fills the remaining row width */
+    .ap-type-section .ap-field-pair.ap-pair-grow {
+        flex: 1;
+        min-width: 100%;
+    }
+    /* Checkboxes can wrap more tightly */
+    .ap-type-section .ap-row:last-child {
+        gap: 6px 14px;
+    }
+    /* Scope textareas: stack on very narrow screens */
+    .ap-scope-row {
+        flex-direction: column;
+    }
+    /* Trigger pills: ensure they wrap cleanly */
+    .ap-triggers-row {
+        gap: 8px;
+    }
+    .ap-trigger-pill {
+        padding: 5px 14px;
+    }
+}

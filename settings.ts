@@ -607,6 +607,11 @@ function addInlineInput(
 	return input
 }
 
+// Wraps a label+control pair so they stay together when the row wraps on narrow screens
+function pair(row: HTMLElement, grow = false): HTMLElement {
+	return row.createDiv('ap-field-pair' + (grow ? ' ap-pair-grow' : ''))
+}
+
 function buildCompactTypeFields(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	switch (wip.type) {
 		case 'file':     buildFileCompact(el, wip, markDirty);     break
@@ -619,8 +624,9 @@ function buildCompactTypeFields(el: HTMLElement, wip: ResolvedRule, markDirty: (
 
 function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row = el.createDiv('ap-row')
-	row.createSpan({ text: 'Pull', cls: 'ap-row-label' })
-	addSelect<FilePull>(row, [
+	const p = pair(row)
+	p.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	addSelect<FilePull>(p, [
 		['name',      'File name'],
 		['path',      'Full path'],
 		['folder',    'Folder'],
@@ -633,22 +639,27 @@ function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => v
 
 function buildLinesCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
-	row1.createSpan({ text: 'Pull', cls: 'ap-row-label' })
-	addSelect<Pull>(row1, [
+
+	const pullP = pair(row1)
+	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	addSelect<Pull>(pullP, [
 		['first', 'First'],
 		['all',   'All'],
 		['count', 'Count'],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
-	row1.createSpan({ text: 'Match', cls: 'ap-row-label' })
-	addSelect<LineMatch>(row1, [
+	const matchP = pair(row1)
+	matchP.createSpan({ text: 'Match', cls: 'ap-row-label' })
+	addSelect<LineMatch>(matchP, [
 		['starting_with', 'Starting with'],
 		['ending_with',   'Ending with'],
 		['containing',    'Containing'],
 		['regex',         'Regex'],
 	], wip.match, v => { wip.match = v; markDirty() })
 
-	addInlineInput(row1, 'Search string', wip.value, v => { wip.value = v; markDirty() }, true)
+	const searchP = pair(row1, true)
+	searchP.createSpan({ text: 'Search string', cls: 'ap-row-label' })
+	addInlineInput(searchP, 'e.g. - [ ]', wip.value, v => { wip.value = v; markDirty() }, true)
 
 	const row2 = el.createDiv('ap-row')
 	addCheck(row2, 'Include search string', !wip.omit_match,         v => { wip.omit_match         = !v; markDirty() })
@@ -659,20 +670,22 @@ function buildLinesCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => 
 
 function buildBetweenCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
-	row1.createSpan({ text: 'Pull', cls: 'ap-row-label' })
-	addSelect<Pull>(row1, [
+
+	const pullP = pair(row1)
+	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	addSelect<Pull>(pullP, [
 		['first', 'First'],
 		['all',   'All'],
 		['count', 'Count'],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
-	row1.createSpan({ text: 'Start', cls: 'ap-row-label' })
-	const startInput = addInlineInput(row1, 'e.g. ==', wip.start, v => { wip.start = v; markDirty() })
-	startInput.style.width = '80px'
+	const startP = pair(row1)
+	startP.createSpan({ text: 'Start', cls: 'ap-row-label' })
+	addInlineInput(startP, 'e.g. ==', wip.start, v => { wip.start = v; markDirty() }).addClass('ap-narrow')
 
-	row1.createSpan({ text: 'End', cls: 'ap-row-label' })
-	const endInput = addInlineInput(row1, 'Same as start', wip.end, v => { wip.end = v; markDirty() })
-	endInput.style.width = '80px'
+	const endP = pair(row1)
+	endP.createSpan({ text: 'End', cls: 'ap-row-label' })
+	addInlineInput(endP, 'Same as start', wip.end, v => { wip.end = v; markDirty() }).addClass('ap-narrow')
 
 	const row2 = el.createDiv('ap-row')
 	addCheck(row2, 'Inclusive',      wip.inclusive,      v => { wip.inclusive      = v; markDirty() })
@@ -682,26 +695,30 @@ function buildBetweenCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () =
 
 function buildHeadingsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
-	row1.createSpan({ text: 'Pull', cls: 'ap-row-label' })
-	addSelect<Pull>(row1, [
+
+	const pullP = pair(row1)
+	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	addSelect<Pull>(pullP, [
 		['text',  'Heading text only'],
 		['first', 'Full section content'],
 		['count', 'Count'],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
-	row1.createSpan({ text: 'Target by', cls: 'ap-row-label' })
-	addSelect<HeadingMatch>(row1, [
+	const targetP = pair(row1)
+	targetP.createSpan({ text: 'Target by', cls: 'ap-row-label' })
+	addSelect<HeadingMatch>(targetP, [
 		['level', 'Level (1–6)'],
 		['text',  'Heading text'],
 	], wip.heading_match, v => { wip.heading_match = v; markDirty() })
 
-	const valInput = addInlineInput(
-		row1,
+	const valP = pair(row1)
+	valP.createSpan({ text: 'Value', cls: 'ap-row-label' })
+	addInlineInput(
+		valP,
 		wip.heading_match === 'level' ? '1–6' : 'Heading text',
 		String(wip.heading_value),
 		v => { wip.heading_value = wip.heading_match === 'level' ? parseInt(v) || 1 : v; markDirty() },
-	)
-	valInput.style.width = '90px'
+	).addClass('ap-narrow')
 
 	const row2 = el.createDiv('ap-row')
 	addCheck(row2, 'Include heading line', wip.include_heading_line, v => { wip.include_heading_line = v; markDirty() })
@@ -710,19 +727,22 @@ function buildHeadingsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () 
 
 function buildCalloutsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
 	const row1 = el.createDiv('ap-row')
-	row1.createSpan({ text: 'Pull', cls: 'ap-row-label' })
-	addSelect<Pull>(row1, [
+
+	const pullP = pair(row1)
+	pullP.createSpan({ text: 'Pull', cls: 'ap-row-label' })
+	addSelect<Pull>(pullP, [
 		['first', 'First'],
 		['all',   'All'],
 		['count', 'Count'],
 	], wip.pull, v => { wip.pull = v; markDirty() })
 
-	row1.createSpan({ text: 'Type filter', cls: 'ap-row-label' })
-	const typeInput = addInlineInput(row1, 'Any type', wip.callout_type, v => { wip.callout_type = v; markDirty() })
-	typeInput.style.width = '90px'
+	const typeP = pair(row1)
+	typeP.createSpan({ text: 'Type filter', cls: 'ap-row-label' })
+	addInlineInput(typeP, 'Any type', wip.callout_type, v => { wip.callout_type = v; markDirty() }).addClass('ap-narrow')
 
-	row1.createSpan({ text: 'Extract', cls: 'ap-row-label' })
-	addSelect<CalloutExtract>(row1, [
+	const extractP = pair(row1)
+	extractP.createSpan({ text: 'Extract', cls: 'ap-row-label' })
+	addSelect<CalloutExtract>(extractP, [
 		['header', 'Header'],
 		['body',   'Body'],
 		['both',   'Both'],

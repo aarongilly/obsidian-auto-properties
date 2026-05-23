@@ -269,7 +269,7 @@
 }
 
 /* ── Misc ── */
-.hide { display: none !important; }
+.hide { display: none; }
 
 /* ── Mobile layout ── */
 @media (max-width: 600px) {

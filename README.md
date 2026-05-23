@@ -10,6 +10,8 @@ An [Obsidian](https://obsidian.md) plugin that automatically fills note frontmat
 
 You define rules in the plugin settings. Each rule watches note content and writes a value to a frontmatter property when its trigger fires. Note bodies are **never modified** — only frontmatter properties are written.
 
+![Example Rules Screenshot](assets/rules.png)
+
 ---
 
 ## Rule types
@@ -92,6 +94,53 @@ Ignore wins if both match. Leave both empty to run on all notes.
 ## Import / Export
 
 Rules can be exported as JSON to your clipboard and imported back (append to existing or replace all). This makes sharing rule sets or moving between vaults easy.
+
+<details>
+<summary>Example rules</summary>
+
+![Rules in Use](assets/screenshot.png)
+
+```json
+[
+  {
+    "key": "overview",
+    "autoadd": true,
+    "strip_markdown": true,
+    "type": "callouts",
+    "callout_type": "tldr"
+  },
+  {
+    "key": "modified",
+    "autoadd": true,
+    "trigger": [
+      "focus_change"
+    ],
+    "type": "file",
+    "file_pull": "modified"
+  },
+  {
+    "key": "task_count",
+    "autoadd": true,
+    "value": "- [ ]",
+    "pull": "count",
+    "ignore_indentation": true
+  },
+  {
+    "key": "highlights",
+    "autoadd": true,
+    "type": "between",
+    "pull": "all",
+    "start": "=="
+  },
+  {
+    "key": "img",
+    "autoadd": true,
+    "value": "![["
+  }
+]
+```
+
+</details>
 
 ---
 

@@ -566,7 +566,12 @@ export function collectResults(
 export function transformString(value: string, rule: ResolvedRule, file: TFile): string {
 	let v = value
 	if (rule.type === 'lines' && rule.omit_match && rule.value) {
-		v = v.replace(rule.value, '')
+		if (rule.value === '![[') {
+			// Strip ! only, keeping [[ so the result is a clickable link rather than an embed
+			v = v.replace(/^!\[\[/, '[[').replace(/\|\d+(x\d+)?(?=\]|$)/i, '')
+		} else {
+			v = v.replace(rule.value, '')
+		}
 	}
 	if (rule.trim_whitespace) v = v.trim()
 	if (rule.strip_markdown)  v = stripMarkdown(v)

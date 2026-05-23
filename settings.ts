@@ -248,13 +248,6 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		containerEl.createEl('h2', { text: 'Auto-properties', cls: 'ap-main-heading' })
 
-		const wikiP = containerEl.createEl('p', { cls: 'ap-wiki-link' })
-		wikiP.createEl('a', {
-			text: t('ui_wiki_link'),
-			href: 'https://github.com/aarongilly/obsidian-auto-properties/wiki',
-			attr: { target: '_blank', rel: 'noopener' },
-		})
-
 		this.plugin.settings.rules.forEach((rule, index) => {
 			containerEl.appendChild(this.createRulePanel(rule, index))
 		})
@@ -265,6 +258,13 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			await this.plugin.saveSettings()
 			this.display()
 		}
+
+		const wikiP = containerEl.createEl('p', { cls: 'ap-wiki-link' })
+		wikiP.createEl('a', {
+			text: t('ui_wiki_link'),
+			href: 'https://github.com/aarongilly/obsidian-auto-properties/wiki',
+			attr: { target: '_blank', rel: 'noopener' },
+		})
 
 		// ── Import / Export ──────────────────────────────────────────────────
 
@@ -793,10 +793,43 @@ function tryParseRuleJson(raw: string): AutoPropertyRule | null {
 function makeSummaryText(rule: ResolvedRule): string {
 	if (!rule.enabled) return t('ui_disabled')
 	switch (rule.type) {
-		case 'file':     return `${t('type_file')} → ${rule.file_pull}`
-		case 'lines':    return `${t('type_lines')} → ${rule.pull} ${rule.match} "${rule.value}"`
-		case 'between':  return `${t('type_between')} → ${rule.pull} between "${rule.start}" and "${rule.end || rule.start}"`
-		case 'headings': return `${t('type_headings')} → ${rule.pull} (${rule.heading_match}: ${rule.heading_value})`
-		case 'callouts': return `${t('type_callouts')} → ${rule.pull}${rule.callout_type ? ` [!${rule.callout_type}]` : ''} (${rule.extract})`
+		case 'file': {
+			const label: Record<string, string> = {
+				name: 'file name', path: 'full path', folder: 'folder name',
+				extension: 'file extension', created: 'creation date',
+				modified: 'modification date', size: 'file size',
+			}
+			return `pulls ${label[rule.file_pull] ?? rule.file_pull}`
+		}
+		case 'lines': {
+			const matchWord = ({ starting_with: 'starting with', ending_with: 'ending with', containing: 'containing', regex: 'matching' } as Record<string, string>)[rule.match] ?? rule.match
+			if (rule.pull === 'count') return `counts lines ${matchWord} "${rule.value}"`
+			if (rule.pull === 'all')   return `pulls all lines ${matchWord} "${rule.value}"`
+			return `pulls first line ${matchWord} "${rule.value}"`
+		}
+		case 'between': {
+			const end = rule.end || rule.start
+			if (rule.pull === 'count') return `counts text between "${rule.start}" and "${end}"`
+			if (rule.pull === 'all')   return `pulls all text between "${rule.start}" and "${end}"`
+			return `pulls first text between "${rule.start}" and "${end}"`
+		}
+		case 'headings': {
+			if (rule.pull === 'text') {
+				return rule.heading_match === 'level'
+					? `pulls heading text at level ${rule.heading_value}`
+					: `pulls heading with text "${rule.heading_value}"`
+			}
+			return rule.heading_match === 'level'
+				? `pulls section under level ${rule.heading_value} heading`
+				: `pulls section under "${rule.heading_value}" heading`
+		}
+		case 'callouts': {
+			const singular = rule.extract === 'header' ? 'header' : rule.extract === 'both' ? 'header and body' : 'body'
+			const plural   = rule.extract === 'header' ? 'headers' : rule.extract === 'both' ? 'headers and bodies' : 'bodies'
+			const typeFilter = rule.callout_type ? ` with type "${rule.callout_type}"` : ''
+			if (rule.pull === 'count') return `counts callouts${typeFilter}`
+			if (rule.pull === 'all')   return `pulls all callout ${plural}${typeFilter}`
+			return `pulls first callout ${singular}${typeFilter}`
+		}
 	}
 }

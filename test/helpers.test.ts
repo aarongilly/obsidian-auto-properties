@@ -5,6 +5,7 @@ import {
 	shouldRun,
 	applyFormat,
 	collectResults,
+	extractRegexResult,
 } from '../main'
 import { applyDefaults } from '../settings'
 
@@ -136,6 +137,35 @@ describe('applyFormat', () => {
 	it('handles multiple placeholders', () => {
 		const rule = applyDefaults({ key: 'x', format: '${folder}/${filename}: ${result}' })
 		expect(applyFormat('content', rule, f)).toBe('projects/my-note: content')
+	})
+})
+
+// ── extractRegexResult ────────────────────────────────────────────────────────
+
+describe('extractRegexResult', () => {
+	it('returns the first full regex match', () => {
+		const rule = applyDefaults({ key: 'x', result_regex: '\\[[^\\]]+\\]' })
+		expect(extractRegexResult('[Value] - Some More Text', rule)).toBe('[Value]')
+	})
+
+	it('returns the first capture group when one is present', () => {
+		const rule = applyDefaults({ key: 'x', result_regex: '\\[([^\\]]+)\\]' })
+		expect(extractRegexResult('[Value] - Some More Text', rule)).toBe('Value')
+	})
+
+	it('returns an empty string when there is no match', () => {
+		const rule = applyDefaults({ key: 'x', result_regex: '\\[([^\\]]+)\\]' })
+		expect(extractRegexResult('Some More Text', rule)).toBe('')
+	})
+
+	it('uses normal case-sensitive regex semantics', () => {
+		const rule = applyDefaults({ key: 'x', result_regex: '\\[([A-Z]+)\\]' })
+		expect(extractRegexResult('[value] - Some More Text', rule)).toBe('')
+	})
+
+	it('leaves the result unchanged when the regex is invalid', () => {
+		const rule = applyDefaults({ key: 'x', result_regex: '[' })
+		expect(extractRegexResult('original value', rule)).toBe('original value')
 	})
 })
 

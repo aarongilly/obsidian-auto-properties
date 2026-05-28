@@ -74,6 +74,7 @@ These apply to the pulled value before it's written:
 | **Pull** | First match, all matches (as a list), or count of matches |
 | **Strip markdown** | Removes markdown formatting from the result |
 | **Trim whitespace** | Strips leading/trailing whitespace |
+| **Extract regex** | Replaces the result with the first regex match, or the first capture group if present |
 | **Value format** | Template string wrapping the result, e.g. `https://example.com/${result}` |
 
 Available format variables: `${result}`, `${filename}`, `${folder}`, `${path}`, `${created}`, `${modified}`.

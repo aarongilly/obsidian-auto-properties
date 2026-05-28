@@ -23,6 +23,8 @@
   "ui_key_placeholder":       "property-key",
   "ui_format_label":          "Value format",
   "ui_format_placeholder":    "e.g. https://example.com/${result}",
+  "ui_result_regex_label":    "Extract regex",
+  "ui_result_regex_placeholder": "e.g. \\[([^\\]]+)\\]",
 
   "section_input":    "Input",
   "section_output":   "Output & Filters",

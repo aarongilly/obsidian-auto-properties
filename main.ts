@@ -575,8 +575,21 @@ export function transformString(value: string, rule: ResolvedRule, file: TFile):
 	}
 	if (rule.trim_whitespace) v = v.trim()
 	if (rule.strip_markdown)  v = stripMarkdown(v)
+	if (rule.result_regex)    v = extractRegexResult(v, rule)
 	if (rule.format)          v = applyFormat(v, rule, file)
 	return v
+}
+
+export function extractRegexResult(value: string, rule: ResolvedRule): string {
+	let regex: RegExp
+	try {
+		regex = new RegExp(rule.result_regex)
+	} catch {
+		return value
+	}
+	const match = value.match(regex)
+	if (!match) return ''
+	return match[1] ?? match[0]
 }
 
 export function applyFormat(result: string, rule: ResolvedRule, file: TFile): string {

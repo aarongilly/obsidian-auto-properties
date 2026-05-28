@@ -38,6 +38,7 @@ export interface AutoPropertyRule {
 	strip_markdown?: boolean
 	trim_whitespace?: boolean
 	case_sensitive?: boolean
+	result_regex?: string
 	format?: string
 	type?: RuleType
 	// lines
@@ -78,6 +79,7 @@ export interface ResolvedRule {
 	strip_markdown: boolean
 	trim_whitespace: boolean
 	case_sensitive: boolean
+	result_regex: string
 	format: string
 	type: RuleType
 	match: LineMatch
@@ -112,6 +114,7 @@ export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
 	strip_markdown:     false,
 	trim_whitespace:    false,
 	case_sensitive:     false,
+	result_regex:       '',
 	format:             '',
 	type:               'lines',
 	match:              'starting_with',
@@ -508,6 +511,16 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			const outputRow = guiView.createDiv('ap-row')
 			addCheck(outputRow, t('check_strip_markdown'),  wip.strip_markdown,  v => { wip.strip_markdown  = v; markDirty() })
 			addCheck(outputRow, t('check_trim_whitespace'), wip.trim_whitespace, v => { wip.trim_whitespace = v; markDirty() })
+
+			const resultRegexField = guiView.createDiv('ap-field')
+			resultRegexField.createEl('label', { text: t('ui_result_regex_label'), cls: 'ap-field-label' })
+			const resultRegexInput = resultRegexField.createEl('input', {
+				type: 'text',
+				cls: 'ap-field-input',
+				attr: { placeholder: t('ui_result_regex_placeholder') },
+			})
+			resultRegexInput.value = wip.result_regex
+			resultRegexInput.oninput = () => { wip.result_regex = resultRegexInput.value; markDirty() }
 
 			const formatField = guiView.createDiv('ap-field')
 			formatField.createEl('label', { text: t('ui_format_label'), cls: 'ap-field-label' })

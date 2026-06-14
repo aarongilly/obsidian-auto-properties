@@ -117,7 +117,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.isWriting = true
 		try {
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 				const rulesToRun = this.settings.rules.filter(rule =>
 					shouldRun(rule, trigger, frontmatter, file)
 				)
@@ -619,7 +619,7 @@ export function applyFormat(result: string, rule: ResolvedRule, file: TFile): st
 		created:  formatDate(new Date(file.stat.ctime)),
 		modified: formatDate(new Date(file.stat.mtime)),
 	}
-	return rule.format.replace(/\$\{(\w+)\}/g, (match, key) =>
+	return rule.format.replace(/\$\{(\w+)\}/g, (match: string, key: string) =>
 		placeholders[key] ?? match
 	)
 }

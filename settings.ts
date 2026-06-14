@@ -1,9 +1,9 @@
-import { App, Notice, PluginSettingTab, Setting, setIcon } from 'obsidian'
+import { App, Notice, Plugin, PluginSettingTab, Setting, setIcon } from 'obsidian'
 import { t, tf } from './i18n'
 
 // ── Avoid circular import from main.ts ───────────────────────────────────────
 
-interface IAutoPropertyPlugin {
+interface IAutoPropertyPlugin extends Plugin {
 	settings: AutoPropertyPluginSettings
 	saveSettings(): Promise<void>
 }
@@ -172,7 +172,7 @@ export function applyDefaults(partial: Record<string, unknown>): ResolvedRule {
 	const base: Record<string, unknown> = {}
 	for (const k of Object.keys(defaults)) {
 		const v = defaults[k]
-		base[k] = Array.isArray(v) ? [...v] : v
+		base[k] = Array.isArray(v) ? [...(v as unknown[])] : v
 	}
 	const flat = flattenRule(partial)
 	for (const k of Object.keys(flat)) {
@@ -236,7 +236,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 	plugin: IAutoPropertyPlugin
 
 	constructor(app: App, plugin: IAutoPropertyPlugin) {
-		super(app, plugin as any)
+		super(app, plugin)
 		this.plugin = plugin
 	}
 
@@ -796,9 +796,9 @@ function buildCalloutsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () 
 
 function parseRulesJson(raw: string): AutoPropertyRule[] | null {
 	try {
-		const parsed = JSON.parse(raw.trim())
+		const parsed: unknown = JSON.parse(raw.trim())
 		if (!Array.isArray(parsed)) return null
-		if (!parsed.every(r => typeof r === 'object' && r !== null && typeof r.key === 'string')) return null
+		if (!parsed.every(r => typeof r === 'object' && r !== null && typeof (r as Record<string, unknown>).key === 'string')) return null
 		return parsed as AutoPropertyRule[]
 	} catch {
 		return null
@@ -807,8 +807,9 @@ function parseRulesJson(raw: string): AutoPropertyRule[] | null {
 
 function tryParseRuleJson(raw: string): AutoPropertyRule | null {
 	try {
-		const parsed = JSON.parse(raw)
-		if (typeof parsed !== 'object' || !parsed.key) return null
+		const parsed: unknown = JSON.parse(raw)
+		if (typeof parsed !== 'object' || parsed === null) return null
+		if (!('key' in parsed) || !(parsed as Record<string, unknown>).key) return null
 		return parsed as AutoPropertyRule
 	} catch {
 		return null

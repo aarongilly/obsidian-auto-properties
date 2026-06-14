@@ -254,7 +254,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				})
 			})
 
-		new Setting(containerEl).setName('Auto-properties').setHeading()
+		new Setting(containerEl).setName('Rules').setHeading()
 
 		this.plugin.settings.rules.forEach((rule, index) => {
 			containerEl.appendChild(this.createRulePanel(rule, index))
@@ -295,7 +295,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				})
 			})
 
-		const exportTextarea = document.createElement('textarea')
+		const exportTextarea = activeDocument.createElement('textarea')
 		exportTextarea.readOnly = true
 		exportTextarea.addClasses(['ap-io-textarea', 'ap-export-textarea', 'hide'])
 		containerEl.appendChild(exportTextarea)
@@ -304,16 +304,16 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			.setName(t('ui_import_rules'))
 			.setDesc(t('ui_import_rules_desc'))
 
-		const importTextarea = document.createElement('textarea')
+		const importTextarea = activeDocument.createElement('textarea')
 		importTextarea.addClass('ap-io-textarea')
 		importTextarea.placeholder = t('ui_import_placeholder')
 		containerEl.appendChild(importTextarea)
 
-		const importButtons = document.createElement('div')
+		const importButtons = activeDocument.createElement('div')
 		importButtons.addClass('ap-import-buttons')
 		containerEl.appendChild(importButtons)
 
-		const appendBtn = document.createElement('button')
+		const appendBtn = activeDocument.createElement('button')
 		appendBtn.setText(t('ui_append'))
 		appendBtn.onclick = async () => {
 			const rules = parseRulesJson(importTextarea.value)
@@ -331,7 +331,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		}
 		importButtons.appendChild(appendBtn)
 
-		const replaceBtn = document.createElement('button')
+		const replaceBtn = activeDocument.createElement('button')
 		replaceBtn.setText(t('ui_replace_all'))
 		replaceBtn.addClasses(['mod-warning'])
 		replaceBtn.onclick = async () => {
@@ -357,7 +357,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			[wip.type]: extractTypeFields(wip),
 		}
 
-		const panel = document.createElement('div')
+		const panel = activeDocument.createElement('div')
 		panel.addClass('ap-panel')
 
 		// ── Summary row ──────────────────────────────────────────────────────
@@ -516,7 +516,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				['-', t('math_sub')],
 				['*', t('math_mul')],
 				['/', t('math_div')],
-			], wip.math_op ?? '', v => { wip.math_op = v === '' ? undefined : v as MathOp; markDirty() })
+			], wip.math_op ?? '', v => { wip.math_op = v === '' ? undefined : v; markDirty() })
 			const mathValP = pair(mathRow)
 			mathValP.createSpan({ text: t('math_by'), cls: 'ap-row-label' })
 			const mathValInput = mathValP.createEl('input', {

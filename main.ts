@@ -34,7 +34,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'update-current',
-			name: 'Update auto-properties',
+			name: 'Update property values',
 			checkCallback: (checking: boolean) => {
 				const view = this.app.workspace.getActiveViewOfType(MarkdownView)
 				if (!view?.file) return false
@@ -45,7 +45,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'update-all',
-			name: 'Update auto-properties for every note in vault',
+			name: 'Update property values for every note in vault',
 			callback: () => {
 				const files = this.app.vault.getFiles().filter(f => f.extension === 'md')
 				new Notice(tf('notice_rules_running', { count: files.length }))
@@ -265,7 +265,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 			default:
 				// file type is handled before this is called
-				throw new Error(`toBoundaryConditions called with type: ${(rule as ResolvedRule).type}`)
+				throw new Error(`toBoundaryConditions called with type: ${rule.type}`)
 		}
 	}
 
@@ -632,7 +632,7 @@ export function stripMarkdown(text: string): string {
 		.replace(/`(.*?)`/g, '$1')                      // inline code
 		.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2') // wiki link with alias → alias
 		.replace(/\[\[([^\]]+)\]\]/g, '$1')             // wiki link → target
-		.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')       // markdown link → label
+		.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')       // markdown link → label
 		.replace(/^#{1,6}\s+/gm, '')                    // headings
 		.replace(/^[-*+]\s+/gm, '')                     // list bullets
 		.replace(/^>\s*/gm, '')                         // blockquotes

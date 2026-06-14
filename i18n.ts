@@ -1,3 +1,4 @@
+import { getLanguage } from 'obsidian'
 import en from './locales/en.json'
 
 export type LocaleKey = keyof typeof en
@@ -12,7 +13,7 @@ export function addLocale(lang: string, strings: Partial<Record<LocaleKey, strin
 }
 
 function getLang(): string {
-	try { return localStorage.getItem('language') ?? 'en' }
+	try { return getLanguage() ?? 'en' }
 	catch { return 'en' }
 }
 

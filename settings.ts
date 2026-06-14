@@ -15,8 +15,9 @@ export type Trigger      = 'modification' | 'focus_change' | 'open'
 export type Pull         = 'first' | 'all' | 'count' | 'text'
 export type LineMatch    = 'starting_with' | 'ending_with' | 'containing' | 'regex'
 export type HeadingMatch = 'text' | 'level'
-export type FilePull     = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension'
+export type FilePull     = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension' | 'words' | 'characters' | 'sentences'
 export type CalloutExtract = 'header' | 'body' | 'both'
+export type MathOp       = '+' | '-' | '*' | '/'
 
 // ── Plugin settings ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ export interface AutoPropertyRule {
 	trim_whitespace?: boolean
 	case_sensitive?: boolean
 	format?: string
+	math_op?: MathOp
+	math_value?: number
 	type?: RuleType
 	// lines
 	match?: LineMatch
@@ -79,6 +82,8 @@ export interface ResolvedRule {
 	trim_whitespace: boolean
 	case_sensitive: boolean
 	format: string
+	math_op?: MathOp
+	math_value?: number
 	type: RuleType
 	match: LineMatch
 	value: string
@@ -134,7 +139,7 @@ export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
 	file_pull:          'name',
 }
 
-const KNOWN_KEYS = new Set<string>(['key', ...Object.keys(RULE_DEFAULTS)])
+const KNOWN_KEYS = new Set<string>(['key', 'math_op', 'math_value', ...Object.keys(RULE_DEFAULTS)])
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
 	rules: [],
@@ -192,6 +197,9 @@ export function stripDefaults(rule: ResolvedRule): AutoPropertyRule {
 			result[k] = v
 		}
 	}
+	// math_op/math_value have no defaults; emit only when set
+	if (ruleRecord['math_op']    !== undefined) result['math_op']    = ruleRecord['math_op']
+	if (ruleRecord['math_value'] !== undefined) result['math_value'] = ruleRecord['math_value']
 	return result as unknown as AutoPropertyRule
 }
 
@@ -509,6 +517,30 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			addCheck(outputRow, t('check_strip_markdown'),  wip.strip_markdown,  v => { wip.strip_markdown  = v; markDirty() })
 			addCheck(outputRow, t('check_trim_whitespace'), wip.trim_whitespace, v => { wip.trim_whitespace = v; markDirty() })
 
+			const mathRow = guiView.createDiv('ap-row')
+			const mathOpP = pair(mathRow)
+			mathOpP.createSpan({ text: t('ui_math'), cls: 'ap-row-label' })
+			addSelect<MathOp | ''>(mathOpP, [
+				['', t('math_none')],
+				['+', t('math_add')],
+				['-', t('math_sub')],
+				['*', t('math_mul')],
+				['/', t('math_div')],
+			], wip.math_op ?? '', v => { wip.math_op = v === '' ? undefined : v as MathOp; markDirty() })
+			const mathValP = pair(mathRow)
+			mathValP.createSpan({ text: t('math_by'), cls: 'ap-row-label' })
+			const mathValInput = mathValP.createEl('input', {
+				type: 'number',
+				cls: 'ap-inline-input ap-narrow',
+				attr: { placeholder: '0' },
+			})
+			mathValInput.value = wip.math_value !== undefined ? String(wip.math_value) : ''
+			mathValInput.oninput = () => {
+				const n = parseFloat(mathValInput.value)
+				wip.math_value = isNaN(n) ? undefined : n
+				markDirty()
+			}
+
 			const formatField = guiView.createDiv('ap-field')
 			formatField.createEl('label', { text: t('ui_format_label'), cls: 'ap-field-label' })
 			const formatInput = formatField.createEl('input', {
@@ -641,13 +673,16 @@ function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => v
 	const p = pair(row)
 	p.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
 	addSelect<FilePull>(p, [
-		['name',      t('file_pull_name')],
-		['path',      t('file_pull_path')],
-		['folder',    t('file_pull_folder')],
-		['extension', t('file_pull_extension')],
-		['created',   t('file_pull_created')],
-		['modified',  t('file_pull_modified')],
-		['size',      t('file_pull_size')],
+		['name',       t('file_pull_name')],
+		['path',       t('file_pull_path')],
+		['folder',     t('file_pull_folder')],
+		['extension',  t('file_pull_extension')],
+		['created',    t('file_pull_created')],
+		['modified',   t('file_pull_modified')],
+		['size',       t('file_pull_size')],
+		['words',      t('file_pull_words')],
+		['characters', t('file_pull_characters')],
+		['sentences',  t('file_pull_sentences')],
 	], wip.file_pull, v => { wip.file_pull = v; markDirty() })
 }
 
@@ -798,6 +833,7 @@ function makeSummaryText(rule: ResolvedRule): string {
 				name: 'file name', path: 'full path', folder: 'folder name',
 				extension: 'file extension', created: 'creation date',
 				modified: 'modification date', size: 'file size',
+				words: 'word count', characters: 'character count', sentences: 'sentence count',
 			}
 			return `pulls ${label[rule.file_pull] ?? rule.file_pull}`
 		}

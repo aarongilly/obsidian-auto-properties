@@ -6,11 +6,22 @@ An [Obsidian](https://obsidian.md) plugin that automatically fills note frontmat
 
 ---
 
+# [👉 DEMO VIDEO](https://youtu.be/zx2slTcx_3M)
+
 ## How it works
 
 You define rules in the plugin settings. Each rule watches note content and writes a value to a frontmatter property when its trigger fires. Note bodies are **never modified** — only frontmatter properties are written.
 
 ![Example Rules Screenshot](assets/rules.png)
+
+### Example Uses
+- Find in-work tasks
+- Pull highlighted material
+- Extract a TL;DR block
+- Add the first image embed
+- Do word counts or reading time
+- Auto-add file create / update dates
+- ...and *whatever else you can think of*
 
 ---
 

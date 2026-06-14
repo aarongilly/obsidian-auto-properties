@@ -7,6 +7,7 @@ import {
 	ResolvedRule,
 	RuleType,
 	Pull,
+	MathOp,
 	Trigger,
 	flattenRule,
 	applyDefaults,
@@ -175,7 +176,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		let result: string | string[] | number | null
 
 		if (rule.type === 'file') {
-			result = AutoPropertyPlugin.evaluateFileRule(rule, file)
+			result = AutoPropertyPlugin.evaluateFileRule(rule, file, bodyLines)
 		} else {
 			const boundaries = AutoPropertyPlugin.toBoundaryConditions(rule)
 			result = AutoPropertyPlugin.extractBetweenBoundaries(bodyLines, boundaries)
@@ -186,15 +187,18 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	// ── File rule ─────────────────────────────────────────────────────────────
 
-	static evaluateFileRule(rule: ResolvedRule, file: TFile): string | number {
+	static evaluateFileRule(rule: ResolvedRule, file: TFile, bodyLines: string[]): string | number {
 		switch (rule.file_pull) {
-			case 'name':      return file.basename
-			case 'path':      return file.path
-			case 'folder':    return file.parent?.path ?? ''
-			case 'extension': return file.extension
-			case 'size':      return file.stat.size
-			case 'created':   return formatDate(new Date(file.stat.ctime))
-			case 'modified':  return formatDate(new Date(file.stat.mtime))
+			case 'name':       return file.basename
+			case 'path':       return file.path
+			case 'folder':     return file.parent?.path ?? ''
+			case 'extension':  return file.extension
+			case 'size':       return file.stat.size
+			case 'created':    return formatDate(new Date(file.stat.ctime))
+			case 'modified':   return formatDate(new Date(file.stat.mtime))
+			case 'words':      return countWords(bodyLines.join('\n'))
+			case 'characters': return bodyLines.join('\n').length
+			case 'sentences':  return countSentences(bodyLines.join('\n'))
 		}
 	}
 
@@ -399,7 +403,11 @@ export default class AutoPropertyPlugin extends Plugin {
 		file: TFile
 	): string | string[] | number | null {
 		if (value === null || value === undefined) return null
-		if (typeof value === 'number') return value
+		if (typeof value === 'number') {
+			const v = applyMath(value, rule.math_op, rule.math_value)
+			if (rule.format) return applyFormat(String(v), rule, file)
+			return v
+		}
 
 		if (Array.isArray(value)) {
 			return value.map(v => transformString(v, rule, file))
@@ -550,6 +558,29 @@ export function lineMatchesRule(line: string, rule: ResolvedRule): boolean {
 		case 'ending_with':   return haystack.endsWith(needle)
 		case 'containing':    return haystack.includes(needle)
 		case 'regex':         return new RegExp(rule.value, rule.case_sensitive ? '' : 'i').test(checkLine)
+	}
+}
+
+export function countWords(text: string): number {
+	const t = text.trim()
+	return t === '' ? 0 : t.split(/\s+/).length
+}
+
+export function countSentences(text: string): number {
+	return text.split(/[.!?]+/).filter(s => s.trim().length > 0).length
+}
+
+function trimDecimals(n: number): number {
+	return Number.isInteger(n) ? n : Math.round(n * 10) / 10
+}
+
+export function applyMath(value: number, op: MathOp | undefined, operand: number | undefined): number {
+	if (!op || operand === undefined) return value
+	switch (op) {
+		case '+': return value + operand
+		case '-': return value - operand
+		case '*': return value * operand
+		case '/': return operand !== 0 ? trimDecimals(value / operand) : value
 	}
 }
 

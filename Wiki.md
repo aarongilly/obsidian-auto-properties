@@ -244,6 +244,15 @@ When `true`, removes common markdown formatting from the result:
 
 When `true`, strips leading and trailing whitespace from each result string.
 
+### `math_op` and `math_value`
+
+Math allows you to do one basic math operation *(add, subtract, multiply, divide)* to any numeric property. 
+
+> **⏳ Example use:** Estimated read time
+> File type > count words > divide by > 200
+
+It has no effect on non-numeric property values.
+
 ### `format`
 
 A template string that wraps the result. Available placeholders:
@@ -535,7 +544,24 @@ Pulls the value after `Author: ` anywhere in the note body. Useful if you write 
 
 ---
 
-### 12. All rules from the README example
+### 12. Calculate estimated read time
+
+Counts the words in the file, then divides by an estimated reading rate. 
+
+```json
+{
+    "key": "readtime",
+    "format": "${result} mins",
+    "type": "file",
+    "file_pull": "words",
+    "math_op": "/",
+    "math_value": 198
+}
+```
+
+---
+
+### 13. All rules from the README example
 
 The five-rule set shown in the README — a practical starting point:
 

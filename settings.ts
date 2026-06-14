@@ -254,7 +254,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				})
 			})
 
-		containerEl.createEl('h2', { text: 'Auto-properties', cls: 'ap-main-heading' })
+		new Setting(containerEl).setName('Auto-properties').setHeading()
 
 		this.plugin.settings.rules.forEach((rule, index) => {
 			containerEl.appendChild(this.createRulePanel(rule, index))
@@ -286,7 +286,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				btn.onClick(() => {
 					const json = JSON.stringify(this.plugin.settings.rules, null, 2)
 					exportTextarea.value = json
-					exportTextarea.style.display = 'block'
+					exportTextarea.removeClass('hide')
 					navigator.clipboard.writeText(json).then(() => {
 						new Notice(t('notice_copied'))
 					}).catch(() => {
@@ -297,12 +297,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 
 		const exportTextarea = document.createElement('textarea')
 		exportTextarea.readOnly = true
-		exportTextarea.style.display = 'none'
-		exportTextarea.style.width = '100%'
-		exportTextarea.style.minHeight = '160px'
-		exportTextarea.style.fontFamily = 'monospace'
-		exportTextarea.style.fontSize = 'var(--font-smallest)'
-		exportTextarea.style.marginBottom = '16px'
+		exportTextarea.addClasses(['ap-io-textarea', 'ap-export-textarea', 'hide'])
 		containerEl.appendChild(exportTextarea)
 
 		new Setting(containerEl)
@@ -310,17 +305,12 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			.setDesc(t('ui_import_rules_desc'))
 
 		const importTextarea = document.createElement('textarea')
-		importTextarea.style.width = '100%'
-		importTextarea.style.minHeight = '160px'
-		importTextarea.style.fontFamily = 'monospace'
-		importTextarea.style.fontSize = 'var(--font-smallest)'
-		importTextarea.style.marginBottom = '8px'
+		importTextarea.addClass('ap-io-textarea')
 		importTextarea.placeholder = t('ui_import_placeholder')
 		containerEl.appendChild(importTextarea)
 
 		const importButtons = document.createElement('div')
-		importButtons.style.display = 'flex'
-		importButtons.style.gap = '8px'
+		importButtons.addClass('ap-import-buttons')
 		containerEl.appendChild(importButtons)
 
 		const appendBtn = document.createElement('button')

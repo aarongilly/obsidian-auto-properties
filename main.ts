@@ -632,6 +632,18 @@ export function transformString(value: string, rule: ResolvedRule, file: TFile):
 	return v
 }
 
+export function extractRegexResult(value: string, rule: ResolvedRule): string {
+	let regex: RegExp
+	try {
+		regex = new RegExp(rule.result_regex)
+	} catch {
+		return value
+	}
+	const match = value.match(regex)
+	if (!match) return ''
+	return match[1] ?? match[0]
+}
+
 export function applyFormat(result: string, rule: ResolvedRule, file: TFile): string {
 	const placeholders: Record<string, string> = {
 		result,

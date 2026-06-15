@@ -50,6 +50,7 @@ These fields are shared across all rule types. Only `key` is required — everyt
 | `whereignore` | array | `[]` | Skip notes in these folders |
 | `strip_markdown` | boolean | `false` | Remove markdown formatting from the result before writing |
 | `trim_whitespace` | boolean | `false` | Strip leading and trailing whitespace from the result |
+| `result_regex` | string | `""` | Replace the result with the first regex match, or the first capture group if present |
 | `format` | string | `""` | Template string wrapping the result (e.g. `"https://example.com/${result}"`) |
 | `pull` | string | `"first"` | How many matches to collect: `"first"`, `"all"`, or `"count"` |
 | `case_sensitive` | boolean | `false` | Case-sensitive matching |
@@ -227,6 +228,13 @@ Controls how many matches are collected:
 | `"all"` | array of strings | All matches, written as a YAML list |
 | `"count"` | number | The total count of matches |
 
+### `displayed_text`
+
+Applies to file-type rules when pull word count.  
+When `true`, removes text not shown in 'Preview' (e.g. link text)
+
+Example: There are five words [[none of the words in this link section count|here]].
+
 ### `strip_markdown`
 
 When `true`, removes common markdown formatting from the result:
@@ -243,6 +251,12 @@ When `true`, removes common markdown formatting from the result:
 ### `trim_whitespace`
 
 When `true`, strips leading and trailing whitespace from each result string.
+
+### `result_regex`
+
+When set, runs a regular expression against each result string before `format` is applied. The result becomes the first capture group if the pattern has one, otherwise the full first match. If the pattern does not match, the result becomes empty.
+
+Example: `"result_regex": "\\[([^\\]]+)\\]"` would turn a file name like `[Value] - Some More Text` into `Value`, so a `format` value like `"https://example.com/${result}"` becomes `https://example.com/Value`.
 
 ### `math_op` and `math_value`
 

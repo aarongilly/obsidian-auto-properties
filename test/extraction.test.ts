@@ -271,6 +271,24 @@ describe('evaluateRule: file', () => {
 		expect(AutoPropertyPlugin.evaluateRule(rule, [], namedFile)).toBe('my-note')
 	})
 
+	it('can extract part of a file name before applying value format', () => {
+		const bracketedFile = mockFile({
+			path: 'projects/[Value] - Some More Text.md',
+			basename: '[Value] - Some More Text',
+			extension: 'md',
+			parent: Object.assign(new TFolder(), { path: 'projects' }),
+			stat: { ctime: 1700000000000, mtime: 1700100000000, size: 2048 },
+		})
+		const rule = applyDefaults({
+			key: 'source',
+			type: 'file',
+			file_pull: 'name',
+			result_regex: '\\[([^\\]]+)\\]',
+			format: 'https://example.com/${result}',
+		})
+		expect(AutoPropertyPlugin.evaluateRule(rule, [], bracketedFile)).toBe('https://example.com/Value')
+	})
+
 	it('returns full path', () => {
 		const rule = applyDefaults({ key: 'fpath', type: 'file', file_pull: 'path' })
 		expect(AutoPropertyPlugin.evaluateRule(rule, [], namedFile)).toBe('projects/my-note.md')

@@ -7,6 +7,7 @@ import {
 	collectResults,
 	resolveLinks,
 	countWords,
+	extractRegexResult,
 } from '../main'
 import { applyDefaults } from '../settings'
 

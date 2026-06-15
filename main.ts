@@ -624,10 +624,7 @@ export function transformString(value: string, rule: ResolvedRule, file: TFile):
 	}
 	if (rule.trim_whitespace) v = v.trim()
 	if (rule.strip_markdown)  v = stripMarkdown(v)
-	if (rule.result_regex) {
-		const m = v.match(new RegExp(rule.result_regex))
-		v = m ? (m[1] ?? m[0]) : v
-	}
+	if (rule.result_regex) v = extractRegexResult(v, rule)
 	if (rule.format)          v = applyFormat(v, rule, file)
 	return v
 }

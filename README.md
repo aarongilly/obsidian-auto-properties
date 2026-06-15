@@ -174,3 +174,9 @@ Or install via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 2. In BRAT settings, click **Add Plugin**
 3. Paste this repo's URL
 4. Done
+
+## NOTE FOR EARLY ADOPTERS OF THE PLUG-IN V1.0 ERA
+
+Rules created in the earlier **V1.0** will unfortunately be erased in the update to V2.0. You'll need to re-create your rules one time. Sorry for the annoying task. Shouldn't happen again.
+
+This was a huge re-write and the rule parsing logic is much cleaner now. I don't expect to ever need to invalidate the current rule parsing enginge (this one is much more forward-thinking)!

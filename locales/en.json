@@ -21,8 +21,6 @@
   "ui_json_mode":             "{ } JSON",
   "ui_gui_mode":              "⚙ GUI",
   "ui_key_placeholder":       "property-key",
-  "ui_result_regex_label":        "Result filter (regex)",
-  "ui_result_regex_placeholder":  "e.g. (\\d+)",
   "ui_format_label":          "Value format",
   "ui_format_placeholder":    "e.g. https://example.com/${result}",
   "ui_result_regex_label":    "Extract regex",

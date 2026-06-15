@@ -33,12 +33,14 @@ export interface AutoPropertyRule {
 	enabled?: boolean
 	autoadd?: boolean
 	no_overwrite?: boolean
+	displayed_text?: boolean
 	trigger?: Trigger[]
 	whererun?: string[]
 	whereignore?: string[]
 	strip_markdown?: boolean
 	trim_whitespace?: boolean
 	case_sensitive?: boolean
+	result_regex?: string
 	format?: string
 	math_op?: MathOp
 	math_value?: number
@@ -75,12 +77,14 @@ export interface ResolvedRule {
 	enabled: boolean
 	autoadd: boolean
 	no_overwrite: boolean
+	displayed_text: boolean
 	trigger: Trigger[]
 	whererun: string[]
 	whereignore: string[]
 	strip_markdown: boolean
 	trim_whitespace: boolean
 	case_sensitive: boolean
+	result_regex: string
 	format: string
 	math_op?: MathOp
 	math_value?: number
@@ -111,12 +115,14 @@ export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
 	enabled:            true,
 	autoadd:            false,
 	no_overwrite:       false,
+	displayed_text:     false,
 	trigger:            [],
 	whererun:           [],
 	whereignore:        [],
 	strip_markdown:     false,
 	trim_whitespace:    false,
 	case_sensitive:     false,
+	result_regex:       '',
 	format:             '',
 	type:               'lines',
 	match:              'starting_with',
@@ -507,6 +513,16 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			addCheck(outputRow, t('check_strip_markdown'),  wip.strip_markdown,  v => { wip.strip_markdown  = v; markDirty() })
 			addCheck(outputRow, t('check_trim_whitespace'), wip.trim_whitespace, v => { wip.trim_whitespace = v; markDirty() })
 
+			const resultRegexField = guiView.createDiv('ap-field')
+			resultRegexField.createEl('label', { text: t('ui_result_regex_label'), cls: 'ap-field-label' })
+			const resultRegexInput = resultRegexField.createEl('input', {
+				type: 'text',
+				cls: 'ap-field-input',
+				attr: { placeholder: t('ui_result_regex_placeholder') },
+			})
+			resultRegexInput.value = wip.result_regex
+			resultRegexInput.oninput = () => { wip.result_regex = resultRegexInput.value; markDirty() }
+
 			const mathRow = guiView.createDiv('ap-row')
 			const mathOpP = pair(mathRow)
 			mathOpP.createSpan({ text: t('ui_math'), cls: 'ap-row-label' })
@@ -662,6 +678,12 @@ function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => v
 	const row = el.createDiv('ap-row')
 	const p = pair(row)
 	p.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
+
+	const wordsRow = el.createDiv('ap-row')
+	const updateWordsRow = () => { wordsRow.style.display = wip.file_pull === 'words' ? '' : 'none' }
+	addCheck(wordsRow, t('check_displayed_text'), wip.displayed_text, v => { wip.displayed_text = v; markDirty() })
+	updateWordsRow()
+
 	addSelect<FilePull>(p, [
 		['name',       t('file_pull_name')],
 		['path',       t('file_pull_path')],
@@ -673,7 +695,7 @@ function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => v
 		['words',      t('file_pull_words')],
 		['characters', t('file_pull_characters')],
 		['sentences',  t('file_pull_sentences')],
-	], wip.file_pull, v => { wip.file_pull = v; markDirty() })
+	], wip.file_pull, v => { wip.file_pull = v; updateWordsRow(); markDirty() })
 }
 
 function buildLinesCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {

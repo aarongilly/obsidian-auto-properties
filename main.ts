@@ -134,9 +134,10 @@ export default class AutoPropertyPlugin extends Plugin {
 					// no_overwrite: skip if key already has a value
 					if (rule.no_overwrite && existing !== null && existing !== undefined && existing !== '') continue
 
+					const keyExists = Object.prototype.hasOwnProperty.call(frontmatter, rule.key)
+
 					// Empty result: clear the property if the key exists and currently has a value
 					if (newValue === '' || newValue === null || newValue === undefined) {
-						const keyExists = Object.prototype.hasOwnProperty.call(frontmatter, rule.key)
 						if (keyExists && existing !== null && existing !== undefined && existing !== '') {
 							frontmatter[rule.key] = null
 							writtenKeys.add(rule.key)
@@ -144,6 +145,9 @@ export default class AutoPropertyPlugin extends Plugin {
 						}
 						continue
 					}
+
+					// Zero result: don't auto-add the key if it isn't already present
+					if (newValue === 0 && !keyExists) continue
 
 					// Skip if nothing changed
 					if (valuesEqual(existing, newValue)) continue
@@ -196,7 +200,10 @@ export default class AutoPropertyPlugin extends Plugin {
 			case 'size':       return file.stat.size
 			case 'created':    return formatDate(new Date(file.stat.ctime))
 			case 'modified':   return formatDate(new Date(file.stat.mtime))
-			case 'words':      return countWords(bodyLines.join('\n'))
+			case 'words': {
+				const body = bodyLines.join('\n')
+				return countWords(rule.displayed_text ? resolveLinks(body) : body)
+			}
 			case 'characters': return bodyLines.join('\n').length
 			case 'sentences':  return countSentences(bodyLines.join('\n'))
 		}
@@ -561,6 +568,17 @@ export function lineMatchesRule(line: string, rule: ResolvedRule): boolean {
 	}
 }
 
+// Resolves links/embeds to their displayed text before counting words.
+// Order is significant: embeds first, aliased wikilinks before bare wikilinks.
+export function resolveLinks(text: string): string {
+	return text
+		.replace(/!\[\[[^\]]*?\]\]/g, '')
+		.replace(/!\[[^\]]*?\]\([^)]*?\)/g, '')
+		.replace(/\[\[[^\[\]|]*\|([^\[\]]*?)\]\]/g, '$1')
+		.replace(/\[\[([^\[\]]*?)\]\]/g, (_, t) => t.split(/[#^]/)[0].split('/').pop() ?? t)
+		.replace(/\[([^\]]*?)\]\([^)]*?\)/g, '$1')
+}
+
 export function countWords(text: string): number {
 	const t = text.trim()
 	return t === '' ? 0 : t.split(/\s+/).length
@@ -606,6 +624,10 @@ export function transformString(value: string, rule: ResolvedRule, file: TFile):
 	}
 	if (rule.trim_whitespace) v = v.trim()
 	if (rule.strip_markdown)  v = stripMarkdown(v)
+	if (rule.result_regex) {
+		const m = v.match(new RegExp(rule.result_regex))
+		v = m ? (m[1] ?? m[0]) : v
+	}
 	if (rule.format)          v = applyFormat(v, rule, file)
 	return v
 }

@@ -21,6 +21,8 @@
   "ui_json_mode":             "{ } JSON",
   "ui_gui_mode":              "⚙ GUI",
   "ui_key_placeholder":       "property-key",
+  "ui_result_regex_label":        "Result filter (regex)",
+  "ui_result_regex_placeholder":  "e.g. (\\d+)",
   "ui_format_label":          "Value format",
   "ui_format_placeholder":    "e.g. https://example.com/${result}",
 
@@ -40,6 +42,7 @@
   "check_enabled":              "Enabled",
   "check_auto_add":             "Auto-add",
   "check_no_overwrite":         "No overwrite",
+  "check_displayed_text":       "count only *displayed* text",
   "check_strip_markdown":       "Strip markdown",
   "check_trim_whitespace":      "Trim whitespace",
   "check_case_sensitive":       "Case sensitive",

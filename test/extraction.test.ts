@@ -51,12 +51,12 @@ describe('evaluateRule: lines', () => {
 	]
 
 	it('returns first line starting with value', () => {
-		const rule = applyDefaults({ key: 'task', value: '- [ ]' })
+		const rule = applyDefaults({ key: 'task', value: '- [ ]', omit_match: false })
 		expect(AutoPropertyPlugin.evaluateRule(rule, lines, file)).toBe('- [ ] Buy milk')
 	})
 
 	it('returns all matching lines', () => {
-		const rule = applyDefaults({ key: 'task', value: '- [ ]', pull: 'all' })
+		const rule = applyDefaults({ key: 'task', value: '- [ ]', pull: 'all', omit_match: false })
 		expect(AutoPropertyPlugin.evaluateRule(rule, lines, file))
 			.toEqual(['- [ ] Buy milk', '- [ ] Walk dog'])
 	})
@@ -83,13 +83,13 @@ describe('evaluateRule: lines', () => {
 	})
 
 	it('ignore_indentation matches indented lines', () => {
-		const rule = applyDefaults({ key: 'task', value: '- [ ]', pull: 'all', ignore_indentation: true })
+		const rule = applyDefaults({ key: 'task', value: '- [ ]', pull: 'all', ignore_indentation: true, omit_match: false })
 		expect(AutoPropertyPlugin.evaluateRule(rule, lines, file))
 			.toEqual(['- [ ] Buy milk', '- [ ] Walk dog', '  - [ ] Indented task'])
 	})
 
 	it('containing match', () => {
-		const rule = applyDefaults({ key: 'x', value: 'other', match: 'containing', case_sensitive: false })
+		const rule = applyDefaults({ key: 'x', value: 'other', match: 'containing', case_sensitive: false, omit_match: false })
 		expect(AutoPropertyPlugin.evaluateRule(rule, lines, file)).toBe('Some other line')
 	})
 

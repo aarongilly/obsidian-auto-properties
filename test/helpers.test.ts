@@ -5,7 +5,8 @@ import {
 	shouldRun,
 	applyFormat,
 	collectResults,
-	extractRegexResult,
+	resolveLinks,
+	countWords,
 } from '../main'
 import { applyDefaults } from '../settings'
 
@@ -233,5 +234,64 @@ describe('shouldRun', () => {
 			whereignore: ['projects'],
 		})
 		expect(shouldRun(rule, 'modification', fm, f)).toBe(false)
+	})
+})
+
+// ── resolveLinks ──────────────────────────────────────────────────────────────
+
+describe('resolveLinks', () => {
+	it('removes wikilink embeds', () => {
+		expect(resolveLinks('before ![[Some Note]] after')).toBe('before  after')
+	})
+	it('removes image embeds', () => {
+		expect(resolveLinks('before ![[diagram.png]] after')).toBe('before  after')
+	})
+	it('removes markdown image embeds', () => {
+		expect(resolveLinks('![alt](image.png)')).toBe('')
+	})
+	it('uses alias for aliased wikilinks', () => {
+		expect(resolveLinks('[[Some Long Path|this]]')).toBe('this')
+	})
+	it('multi-word alias counts fully', () => {
+		expect(resolveLinks('[[Project Plan|the roadmap]]')).toBe('the roadmap')
+	})
+	it('bare wikilink → basename', () => {
+		expect(resolveLinks('[[Quarterly Review]]')).toBe('Quarterly Review')
+	})
+	it('drops heading ref from bare wikilink', () => {
+		expect(resolveLinks('[[folder/note#heading]]')).toBe('note')
+	})
+	it('multi-word basename counts fully', () => {
+		expect(resolveLinks('[[folder/My Project Notes#heading]]')).toBe('My Project Notes')
+	})
+	it('markdown link → text only', () => {
+		expect(resolveLinks('[text here](https://x.com)')).toBe('text here')
+	})
+	it('same-note heading link [[#heading]] → empty string (0 words)', () => {
+		expect(resolveLinks('[[#heading]]')).toBe('')
+	})
+})
+
+// ── countWords with displayed_text pre-pass ───────────────────────────────────
+
+describe('countWords + resolveLinks (displayed_text: true)', () => {
+	const wc = (text: string) => countWords(resolveLinks(text))
+
+	it('[[Some Long Path|this]] → 1 word', () => expect(wc('[[Some Long Path|this]]')).toBe(1))
+	it('[[Project Plan|the roadmap]] → 2 words', () => expect(wc('[[Project Plan|the roadmap]]')).toBe(2))
+	it('[[Quarterly Review]] → 2 words', () => expect(wc('[[Quarterly Review]]')).toBe(2))
+	it('[[folder/note#heading]] → 1 word', () => expect(wc('[[folder/note#heading]]')).toBe(1))
+	it('[[folder/My Project Notes#heading]] → 3 words', () => expect(wc('[[folder/My Project Notes#heading]]')).toBe(3))
+	it('![[diagram.png]] → 0 words', () => expect(wc('![[diagram.png]]')).toBe(0))
+	it('![[Some Note]] → 0 words', () => expect(wc('![[Some Note]]')).toBe(0))
+	it('[text here](https://x.com) → 2 words', () => expect(wc('[text here](https://x.com)')).toBe(2))
+})
+
+describe('countWords without resolveLinks (displayed_text: false)', () => {
+	it('multi-word bare wikilink splits on its internal space', () => {
+		expect(countWords('[[Quarterly Review]]')).toBe(2)
+	})
+	it('single-token embed counts as 1 word, not 0', () => {
+		expect(countWords('![[diagram.png]]')).toBe(1)
 	})
 })

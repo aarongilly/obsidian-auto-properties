@@ -7,6 +7,7 @@ import {
 	ResolvedRule,
 	RuleType,
 	Pull,
+	MathOp,
 	Trigger,
 	flattenRule,
 	applyDefaults,
@@ -33,7 +34,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'update-current',
-			name: 'Update auto-properties',
+			name: 'Update property values',
 			checkCallback: (checking: boolean) => {
 				const view = this.app.workspace.getActiveViewOfType(MarkdownView)
 				if (!view?.file) return false
@@ -44,7 +45,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'update-all',
-			name: 'Update auto-properties for every note in vault',
+			name: 'Update property values for every note in vault',
 			callback: () => {
 				const files = this.app.vault.getFiles().filter(f => f.extension === 'md')
 				new Notice(tf('notice_rules_running', { count: files.length }))
@@ -116,7 +117,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 		this.isWriting = true
 		try {
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
 				const rulesToRun = this.settings.rules.filter(rule =>
 					shouldRun(rule, trigger, frontmatter, file)
 				)
@@ -133,9 +134,10 @@ export default class AutoPropertyPlugin extends Plugin {
 					// no_overwrite: skip if key already has a value
 					if (rule.no_overwrite && existing !== null && existing !== undefined && existing !== '') continue
 
+					const keyExists = Object.prototype.hasOwnProperty.call(frontmatter, rule.key)
+
 					// Empty result: clear the property if the key exists and currently has a value
 					if (newValue === '' || newValue === null || newValue === undefined) {
-						const keyExists = Object.prototype.hasOwnProperty.call(frontmatter, rule.key)
 						if (keyExists && existing !== null && existing !== undefined && existing !== '') {
 							frontmatter[rule.key] = null
 							writtenKeys.add(rule.key)
@@ -143,6 +145,9 @@ export default class AutoPropertyPlugin extends Plugin {
 						}
 						continue
 					}
+
+					// Zero result: don't auto-add the key if it isn't already present
+					if (newValue === 0 && !keyExists) continue
 
 					// Skip if nothing changed
 					if (valuesEqual(existing, newValue)) continue
@@ -175,7 +180,7 @@ export default class AutoPropertyPlugin extends Plugin {
 		let result: string | string[] | number | null
 
 		if (rule.type === 'file') {
-			result = AutoPropertyPlugin.evaluateFileRule(rule, file)
+			result = AutoPropertyPlugin.evaluateFileRule(rule, file, bodyLines)
 		} else {
 			const boundaries = AutoPropertyPlugin.toBoundaryConditions(rule)
 			result = AutoPropertyPlugin.extractBetweenBoundaries(bodyLines, boundaries)
@@ -186,15 +191,21 @@ export default class AutoPropertyPlugin extends Plugin {
 
 	// ── File rule ─────────────────────────────────────────────────────────────
 
-	static evaluateFileRule(rule: ResolvedRule, file: TFile): string | number {
+	static evaluateFileRule(rule: ResolvedRule, file: TFile, bodyLines: string[]): string | number {
 		switch (rule.file_pull) {
-			case 'name':      return file.basename
-			case 'path':      return file.path
-			case 'folder':    return file.parent?.path ?? ''
-			case 'extension': return file.extension
-			case 'size':      return file.stat.size
-			case 'created':   return formatDate(new Date(file.stat.ctime))
-			case 'modified':  return formatDate(new Date(file.stat.mtime))
+			case 'name':       return file.basename
+			case 'path':       return file.path
+			case 'folder':     return file.parent?.path ?? ''
+			case 'extension':  return file.extension
+			case 'size':       return file.stat.size
+			case 'created':    return formatDate(new Date(file.stat.ctime))
+			case 'modified':   return formatDate(new Date(file.stat.mtime))
+			case 'words': {
+				const body = bodyLines.join('\n')
+				return countWords(rule.displayed_text ? resolveLinks(body) : body)
+			}
+			case 'characters': return bodyLines.join('\n').length
+			case 'sentences':  return countSentences(bodyLines.join('\n'))
 		}
 	}
 
@@ -261,7 +272,7 @@ export default class AutoPropertyPlugin extends Plugin {
 
 			default:
 				// file type is handled before this is called
-				throw new Error(`toBoundaryConditions called with type: ${(rule as ResolvedRule).type}`)
+				throw new Error(`toBoundaryConditions called with type: ${rule.type}`)
 		}
 	}
 
@@ -399,7 +410,11 @@ export default class AutoPropertyPlugin extends Plugin {
 		file: TFile
 	): string | string[] | number | null {
 		if (value === null || value === undefined) return null
-		if (typeof value === 'number') return value
+		if (typeof value === 'number') {
+			const v = applyMath(value, rule.math_op, rule.math_value)
+			if (rule.format) return applyFormat(String(v), rule, file)
+			return v
+		}
 
 		if (Array.isArray(value)) {
 			return value.map(v => transformString(v, rule, file))
@@ -553,6 +568,40 @@ export function lineMatchesRule(line: string, rule: ResolvedRule): boolean {
 	}
 }
 
+// Resolves links/embeds to their displayed text before counting words.
+// Order is significant: embeds first, aliased wikilinks before bare wikilinks.
+export function resolveLinks(text: string): string {
+	return text
+		.replace(/!\[\[[^\]]*?\]\]/g, '')
+		.replace(/!\[[^\]]*?\]\([^)]*?\)/g, '')
+		.replace(/\[\[[^\[\]|]*\|([^\[\]]*?)\]\]/g, '$1')
+		.replace(/\[\[([^\[\]]*?)\]\]/g, (_, t) => t.split(/[#^]/)[0].split('/').pop() ?? t)
+		.replace(/\[([^\]]*?)\]\([^)]*?\)/g, '$1')
+}
+
+export function countWords(text: string): number {
+	const t = text.trim()
+	return t === '' ? 0 : t.split(/\s+/).length
+}
+
+export function countSentences(text: string): number {
+	return text.split(/[.!?]+/).filter(s => s.trim().length > 0).length
+}
+
+function trimDecimals(n: number): number {
+	return Number.isInteger(n) ? n : Math.round(n * 10) / 10
+}
+
+export function applyMath(value: number, op: MathOp | undefined, operand: number | undefined): number {
+	if (!op || operand === undefined) return value
+	switch (op) {
+		case '+': return value + operand
+		case '-': return value - operand
+		case '*': return value * operand
+		case '/': return operand !== 0 ? trimDecimals(value / operand) : value
+	}
+}
+
 export function collectResults(
 	matches: string[],
 	pull: Pull | 'first' | 'all' | 'count'
@@ -575,7 +624,10 @@ export function transformString(value: string, rule: ResolvedRule, file: TFile):
 	}
 	if (rule.trim_whitespace) v = v.trim()
 	if (rule.strip_markdown)  v = stripMarkdown(v)
-	if (rule.result_regex)    v = extractRegexResult(v, rule)
+	if (rule.result_regex) {
+		const m = v.match(new RegExp(rule.result_regex))
+		v = m ? (m[1] ?? m[0]) : v
+	}
 	if (rule.format)          v = applyFormat(v, rule, file)
 	return v
 }
@@ -601,7 +653,7 @@ export function applyFormat(result: string, rule: ResolvedRule, file: TFile): st
 		created:  formatDate(new Date(file.stat.ctime)),
 		modified: formatDate(new Date(file.stat.mtime)),
 	}
-	return rule.format.replace(/\$\{(\w+)\}/g, (match, key) =>
+	return rule.format.replace(/\$\{(\w+)\}/g, (match: string, key: string) =>
 		placeholders[key] ?? match
 	)
 }
@@ -614,7 +666,7 @@ export function stripMarkdown(text: string): string {
 		.replace(/`(.*?)`/g, '$1')                      // inline code
 		.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2') // wiki link with alias → alias
 		.replace(/\[\[([^\]]+)\]\]/g, '$1')             // wiki link → target
-		.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')       // markdown link → label
+		.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')       // markdown link → label
 		.replace(/^#{1,6}\s+/gm, '')                    // headings
 		.replace(/^[-*+]\s+/gm, '')                     // list bullets
 		.replace(/^>\s*/gm, '')                         // blockquotes

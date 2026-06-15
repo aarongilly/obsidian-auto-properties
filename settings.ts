@@ -1,9 +1,9 @@
-import { App, Notice, PluginSettingTab, Setting, setIcon } from 'obsidian'
+import { App, Notice, Plugin, PluginSettingTab, Setting, setIcon } from 'obsidian'
 import { t, tf } from './i18n'
 
 // ── Avoid circular import from main.ts ───────────────────────────────────────
 
-interface IAutoPropertyPlugin {
+interface IAutoPropertyPlugin extends Plugin {
 	settings: AutoPropertyPluginSettings
 	saveSettings(): Promise<void>
 }
@@ -15,8 +15,9 @@ export type Trigger      = 'modification' | 'focus_change' | 'open'
 export type Pull         = 'first' | 'all' | 'count' | 'text'
 export type LineMatch    = 'starting_with' | 'ending_with' | 'containing' | 'regex'
 export type HeadingMatch = 'text' | 'level'
-export type FilePull     = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension'
+export type FilePull     = 'created' | 'modified' | 'size' | 'path' | 'folder' | 'name' | 'extension' | 'words' | 'characters' | 'sentences'
 export type CalloutExtract = 'header' | 'body' | 'both'
+export type MathOp       = '+' | '-' | '*' | '/'
 
 // ── Plugin settings ───────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ export interface AutoPropertyRule {
 	enabled?: boolean
 	autoadd?: boolean
 	no_overwrite?: boolean
+	displayed_text?: boolean
 	trigger?: Trigger[]
 	whererun?: string[]
 	whereignore?: string[]
@@ -40,6 +42,8 @@ export interface AutoPropertyRule {
 	case_sensitive?: boolean
 	result_regex?: string
 	format?: string
+	math_op?: MathOp
+	math_value?: number
 	type?: RuleType
 	// lines
 	match?: LineMatch
@@ -73,6 +77,7 @@ export interface ResolvedRule {
 	enabled: boolean
 	autoadd: boolean
 	no_overwrite: boolean
+	displayed_text: boolean
 	trigger: Trigger[]
 	whererun: string[]
 	whereignore: string[]
@@ -81,6 +86,8 @@ export interface ResolvedRule {
 	case_sensitive: boolean
 	result_regex: string
 	format: string
+	math_op?: MathOp
+	math_value?: number
 	type: RuleType
 	match: LineMatch
 	value: string
@@ -108,6 +115,7 @@ export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
 	enabled:            true,
 	autoadd:            false,
 	no_overwrite:       false,
+	displayed_text:     false,
 	trigger:            [],
 	whererun:           [],
 	whereignore:        [],
@@ -137,7 +145,7 @@ export const RULE_DEFAULTS: Omit<ResolvedRule, 'key'> = {
 	file_pull:          'name',
 }
 
-const KNOWN_KEYS = new Set<string>(['key', ...Object.keys(RULE_DEFAULTS)])
+const KNOWN_KEYS = new Set<string>(['key', 'math_op', 'math_value', ...Object.keys(RULE_DEFAULTS)])
 
 export const DEFAULT_SETTINGS: AutoPropertyPluginSettings = {
 	rules: [],
@@ -170,7 +178,7 @@ export function applyDefaults(partial: Record<string, unknown>): ResolvedRule {
 	const base: Record<string, unknown> = {}
 	for (const k of Object.keys(defaults)) {
 		const v = defaults[k]
-		base[k] = Array.isArray(v) ? [...v] : v
+		base[k] = Array.isArray(v) ? [...(v as unknown[])] : v
 	}
 	const flat = flattenRule(partial)
 	for (const k of Object.keys(flat)) {
@@ -195,6 +203,9 @@ export function stripDefaults(rule: ResolvedRule): AutoPropertyRule {
 			result[k] = v
 		}
 	}
+	// math_op/math_value have no defaults; emit only when set
+	if (ruleRecord['math_op']    !== undefined) result['math_op']    = ruleRecord['math_op']
+	if (ruleRecord['math_value'] !== undefined) result['math_value'] = ruleRecord['math_value']
 	return result as unknown as AutoPropertyRule
 }
 
@@ -231,7 +242,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 	plugin: IAutoPropertyPlugin
 
 	constructor(app: App, plugin: IAutoPropertyPlugin) {
-		super(app, plugin as any)
+		super(app, plugin)
 		this.plugin = plugin
 	}
 
@@ -249,7 +260,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				})
 			})
 
-		containerEl.createEl('h2', { text: 'Auto-properties', cls: 'ap-main-heading' })
+		new Setting(containerEl).setName('Rules').setHeading()
 
 		this.plugin.settings.rules.forEach((rule, index) => {
 			containerEl.appendChild(this.createRulePanel(rule, index))
@@ -281,7 +292,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				btn.onClick(() => {
 					const json = JSON.stringify(this.plugin.settings.rules, null, 2)
 					exportTextarea.value = json
-					exportTextarea.style.display = 'block'
+					exportTextarea.removeClass('hide')
 					navigator.clipboard.writeText(json).then(() => {
 						new Notice(t('notice_copied'))
 					}).catch(() => {
@@ -290,35 +301,25 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 				})
 			})
 
-		const exportTextarea = document.createElement('textarea')
+		const exportTextarea = activeDocument.createElement('textarea')
 		exportTextarea.readOnly = true
-		exportTextarea.style.display = 'none'
-		exportTextarea.style.width = '100%'
-		exportTextarea.style.minHeight = '160px'
-		exportTextarea.style.fontFamily = 'monospace'
-		exportTextarea.style.fontSize = 'var(--font-smallest)'
-		exportTextarea.style.marginBottom = '16px'
+		exportTextarea.addClasses(['ap-io-textarea', 'ap-export-textarea', 'hide'])
 		containerEl.appendChild(exportTextarea)
 
 		new Setting(containerEl)
 			.setName(t('ui_import_rules'))
 			.setDesc(t('ui_import_rules_desc'))
 
-		const importTextarea = document.createElement('textarea')
-		importTextarea.style.width = '100%'
-		importTextarea.style.minHeight = '160px'
-		importTextarea.style.fontFamily = 'monospace'
-		importTextarea.style.fontSize = 'var(--font-smallest)'
-		importTextarea.style.marginBottom = '8px'
+		const importTextarea = activeDocument.createElement('textarea')
+		importTextarea.addClass('ap-io-textarea')
 		importTextarea.placeholder = t('ui_import_placeholder')
 		containerEl.appendChild(importTextarea)
 
-		const importButtons = document.createElement('div')
-		importButtons.style.display = 'flex'
-		importButtons.style.gap = '8px'
+		const importButtons = activeDocument.createElement('div')
+		importButtons.addClass('ap-import-buttons')
 		containerEl.appendChild(importButtons)
 
-		const appendBtn = document.createElement('button')
+		const appendBtn = activeDocument.createElement('button')
 		appendBtn.setText(t('ui_append'))
 		appendBtn.onclick = async () => {
 			const rules = parseRulesJson(importTextarea.value)
@@ -336,7 +337,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 		}
 		importButtons.appendChild(appendBtn)
 
-		const replaceBtn = document.createElement('button')
+		const replaceBtn = activeDocument.createElement('button')
 		replaceBtn.setText(t('ui_replace_all'))
 		replaceBtn.addClasses(['mod-warning'])
 		replaceBtn.onclick = async () => {
@@ -362,7 +363,7 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			[wip.type]: extractTypeFields(wip),
 		}
 
-		const panel = document.createElement('div')
+		const panel = activeDocument.createElement('div')
 		panel.addClass('ap-panel')
 
 		// ── Summary row ──────────────────────────────────────────────────────
@@ -522,6 +523,30 @@ export class AutoPropertiesSettingsTab extends PluginSettingTab {
 			resultRegexInput.value = wip.result_regex
 			resultRegexInput.oninput = () => { wip.result_regex = resultRegexInput.value; markDirty() }
 
+			const mathRow = guiView.createDiv('ap-row')
+			const mathOpP = pair(mathRow)
+			mathOpP.createSpan({ text: t('ui_math'), cls: 'ap-row-label' })
+			addSelect<MathOp | ''>(mathOpP, [
+				['', t('math_none')],
+				['+', t('math_add')],
+				['-', t('math_sub')],
+				['*', t('math_mul')],
+				['/', t('math_div')],
+			], wip.math_op ?? '', v => { wip.math_op = v === '' ? undefined : v; markDirty() })
+			const mathValP = pair(mathRow)
+			mathValP.createSpan({ text: t('math_by'), cls: 'ap-row-label' })
+			const mathValInput = mathValP.createEl('input', {
+				type: 'number',
+				cls: 'ap-inline-input ap-narrow',
+				attr: { placeholder: '0' },
+			})
+			mathValInput.value = wip.math_value !== undefined ? String(wip.math_value) : ''
+			mathValInput.oninput = () => {
+				const n = parseFloat(mathValInput.value)
+				wip.math_value = isNaN(n) ? undefined : n
+				markDirty()
+			}
+
 			const formatField = guiView.createDiv('ap-field')
 			formatField.createEl('label', { text: t('ui_format_label'), cls: 'ap-field-label' })
 			const formatInput = formatField.createEl('input', {
@@ -653,15 +678,24 @@ function buildFileCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => v
 	const row = el.createDiv('ap-row')
 	const p = pair(row)
 	p.createSpan({ text: t('ui_pull'), cls: 'ap-row-label' })
+
+	const wordsRow = el.createDiv('ap-row')
+	const updateWordsRow = () => { wordsRow.style.display = wip.file_pull === 'words' ? '' : 'none' }
+	addCheck(wordsRow, t('check_displayed_text'), wip.displayed_text, v => { wip.displayed_text = v; markDirty() })
+	updateWordsRow()
+
 	addSelect<FilePull>(p, [
-		['name',      t('file_pull_name')],
-		['path',      t('file_pull_path')],
-		['folder',    t('file_pull_folder')],
-		['extension', t('file_pull_extension')],
-		['created',   t('file_pull_created')],
-		['modified',  t('file_pull_modified')],
-		['size',      t('file_pull_size')],
-	], wip.file_pull, v => { wip.file_pull = v; markDirty() })
+		['name',       t('file_pull_name')],
+		['path',       t('file_pull_path')],
+		['folder',     t('file_pull_folder')],
+		['extension',  t('file_pull_extension')],
+		['created',    t('file_pull_created')],
+		['modified',   t('file_pull_modified')],
+		['size',       t('file_pull_size')],
+		['words',      t('file_pull_words')],
+		['characters', t('file_pull_characters')],
+		['sentences',  t('file_pull_sentences')],
+	], wip.file_pull, v => { wip.file_pull = v; updateWordsRow(); markDirty() })
 }
 
 function buildLinesCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () => void): void {
@@ -784,9 +818,9 @@ function buildCalloutsCompact(el: HTMLElement, wip: ResolvedRule, markDirty: () 
 
 function parseRulesJson(raw: string): AutoPropertyRule[] | null {
 	try {
-		const parsed = JSON.parse(raw.trim())
+		const parsed: unknown = JSON.parse(raw.trim())
 		if (!Array.isArray(parsed)) return null
-		if (!parsed.every(r => typeof r === 'object' && r !== null && typeof r.key === 'string')) return null
+		if (!parsed.every(r => typeof r === 'object' && r !== null && typeof (r as Record<string, unknown>).key === 'string')) return null
 		return parsed as AutoPropertyRule[]
 	} catch {
 		return null
@@ -795,8 +829,9 @@ function parseRulesJson(raw: string): AutoPropertyRule[] | null {
 
 function tryParseRuleJson(raw: string): AutoPropertyRule | null {
 	try {
-		const parsed = JSON.parse(raw)
-		if (typeof parsed !== 'object' || !parsed.key) return null
+		const parsed: unknown = JSON.parse(raw)
+		if (typeof parsed !== 'object' || parsed === null) return null
+		if (!('key' in parsed) || !(parsed as Record<string, unknown>).key) return null
 		return parsed as AutoPropertyRule
 	} catch {
 		return null
@@ -811,6 +846,7 @@ function makeSummaryText(rule: ResolvedRule): string {
 				name: 'file name', path: 'full path', folder: 'folder name',
 				extension: 'file extension', created: 'creation date',
 				modified: 'modification date', size: 'file size',
+				words: 'word count', characters: 'character count', sentences: 'sentence count',
 			}
 			return `pulls ${label[rule.file_pull] ?? rule.file_pull}`
 		}

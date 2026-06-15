@@ -228,6 +228,13 @@ Controls how many matches are collected:
 | `"all"` | array of strings | All matches, written as a YAML list |
 | `"count"` | number | The total count of matches |
 
+### `displayed_text`
+
+Applies to file-type rules when pull word count.  
+When `true`, removes text not shown in 'Preview' (e.g. link text)
+
+Example: There are five words [[none of the words in this link section count|here]].
+
 ### `strip_markdown`
 
 When `true`, removes common markdown formatting from the result:
@@ -250,6 +257,15 @@ When `true`, strips leading and trailing whitespace from each result string.
 When set, runs a regular expression against each result string before `format` is applied. The result becomes the first capture group if the pattern has one, otherwise the full first match. If the pattern does not match, the result becomes empty.
 
 Example: `"result_regex": "\\[([^\\]]+)\\]"` would turn a file name like `[Value] - Some More Text` into `Value`, so a `format` value like `"https://example.com/${result}"` becomes `https://example.com/Value`.
+
+### `math_op` and `math_value`
+
+Math allows you to do one basic math operation *(add, subtract, multiply, divide)* to any numeric property. 
+
+> **⏳ Example use:** Estimated read time
+> File type > count words > divide by > 200
+
+It has no effect on non-numeric property values.
 
 ### `format`
 
@@ -542,7 +558,24 @@ Pulls the value after `Author: ` anywhere in the note body. Useful if you write 
 
 ---
 
-### 12. All rules from the README example
+### 12. Calculate estimated read time
+
+Counts the words in the file, then divides by an estimated reading rate. 
+
+```json
+{
+    "key": "readtime",
+    "format": "${result} mins",
+    "type": "file",
+    "file_pull": "words",
+    "math_op": "/",
+    "math_value": 198
+}
+```
+
+---
+
+### 13. All rules from the README example
 
 The five-rule set shown in the README — a practical starting point:
 

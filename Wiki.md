@@ -17,6 +17,7 @@ Auto-Properties is an Obsidian plugin that automatically fills note frontmatter 
 - [Triggers](#triggers)
 - [Behaviors](#behaviors)
 - [Output & Filters](#output--filters)
+  - [Value format](#value-format)
 - [Scope](#scope)
 - [Commands](#commands)
 - [Import / Export](#import--export)
@@ -177,7 +178,7 @@ Pulls metadata from the file itself rather than its content.
 | `"modified"` | Last-modified timestamp in `YYYY-MM-DDTHH:MM:SS` format |
 | `"size"` | File size in bytes (number) |
 
-The `format` field can compose these into richer strings. For example, `${result}` refers to the pulled value, while `${filename}`, `${folder}`, `${path}`, `${created}`, and `${modified}` are always available regardless of type.
+The `format` field can compose these into richer strings. See [Value format](#value-format) in Output & Filters for the full list of available placeholders.
 
 ---
 
@@ -267,9 +268,9 @@ Math allows you to do one basic math operation *(add, subtract, multiply, divide
 
 It has no effect on non-numeric property values.
 
-### `format`
+### Value format
 
-A template string that wraps the result. Available placeholders:
+A template string (`format`) that wraps the result. Available placeholders:
 
 | Placeholder | Value |
 |---|---|
@@ -279,6 +280,10 @@ A template string that wraps the result. Available placeholders:
 | `${path}` | Full vault-relative file path |
 | `${created}` | File creation timestamp |
 | `${modified}` | File modification timestamp |
+| `${uuid}` | A randomly generated UUID v4 (e.g. `a1b2c3d4-…`) |
+| `${nanoid}` | A randomly generated 21-character URL-safe ID (e.g. `V1StGXR8_Z5jdHi6B-myT`) |
+
+`${uuid}` and `${nanoid}` generate a new value each time a rule runs, but are stable within a single format string — `${uuid}-${uuid}` will produce the same UUID on both sides.
 
 Example: `"format": "https://example.com/notes/${result}"` would turn a result of `my-note` into `https://example.com/notes/my-note`.
 

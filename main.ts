@@ -641,6 +641,23 @@ export function extractRegexResult(value: string, rule: ResolvedRule): string {
 	return match[1] ?? match[0]
 }
 
+// 64-char URL-safe alphabet: 256 / 64 = 4 exactly, so no modulo bias
+const NANOID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
+
+function generateNanoId(size = 21): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(size))
+	return Array.from(bytes, b => NANOID_ALPHABET[b & 63]).join('')
+}
+
+function generateUUID(): string {
+	if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID()
+	const b = crypto.getRandomValues(new Uint8Array(16))
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('')
+	return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`
+}
+
 export function applyFormat(result: string, rule: ResolvedRule, file: TFile): string {
 	const placeholders: Record<string, string> = {
 		result,
@@ -649,6 +666,8 @@ export function applyFormat(result: string, rule: ResolvedRule, file: TFile): st
 		path:     file.path,
 		created:  formatDate(new Date(file.stat.ctime)),
 		modified: formatDate(new Date(file.stat.mtime)),
+		uuid:     generateUUID(),
+		nanoid:   generateNanoId(),
 	}
 	return rule.format.replace(/\$\{(\w+)\}/g, (match: string, key: string) =>
 		placeholders[key] ?? match

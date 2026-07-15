@@ -1,7 +1,7 @@
 {
 	"id": "auto-properties",
 	"name": "Auto-Properties",
-	"version": "2.2.0",
+	"version": "2.3.0",
 	"minAppVersion": "1.8.7",
 	"description": "Create automated properties based on note content and rules.",
 	"author": "Aaron Gillespie",

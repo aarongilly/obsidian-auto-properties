@@ -140,6 +140,16 @@ describe('applyFormat', () => {
 		const rule = applyDefaults({ key: 'x', format: '${folder}/${filename}: ${result}' })
 		expect(applyFormat('content', rule, f)).toBe('projects/my-note: content')
 	})
+
+	it('${uuid} produces a valid UUID v4', () => {
+		const rule = applyDefaults({ key: 'x', format: '${uuid}' })
+		expect(applyFormat('', rule, f)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+	})
+
+	it('${nanoid} produces a 21-character URL-safe string', () => {
+		const rule = applyDefaults({ key: 'x', format: '${nanoid}' })
+		expect(applyFormat('', rule, f)).toMatch(/^[A-Za-z0-9_-]{21}$/)
+	})
 })
 
 // ── extractRegexResult ────────────────────────────────────────────────────────
